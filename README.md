@@ -152,6 +152,9 @@ und darunter der Knopf zum Starten bzw. Pausieren. Einfach die Instanz in der Ka
 Die Kachel passt sich der Größe an: breit nebeneinander, schmal untereinander (dann ohne Fahrzeug-Grafik); bei kleinen Kacheln bleiben
 Ring, Stromgrenze und Start/Pause. Ist der Ladestrom nicht begrenzt, steht dort „max“.
 
+Auf dem **Handy** (flache Kachel) zeigt die Kachel links den Ring und rechts Ladung, Heute und den Start/Pause-Knopf.
+Über das Vergrößern-Symbol oben rechts öffnet Symcon die volle Ansicht mit allen Werten.
+
 ### Hintergrundbild
 
 Unter **„Kachel“** im Instanz-Formular kannst du ein eigenes Bild (JPG, PNG oder WebP) direkt auswählen, z. B. ein Foto
@@ -222,6 +225,7 @@ Armin Frohwerk
 
 ## Versionen
 
+- **1.9** – Kompakte Handy-Ansicht für flache Kacheln: Ring links, Ladung/Heute und Start/Pause rechts
 - **1.8** – Eigenes Hintergrundbild für die Kachel (mit Abdunkeln und Weichzeichnen)
 - **1.7** – Energie und Kosten pro Tag (Variablen „heute“, Archiv als Zähler für Tag/Woche/Monat/Jahr), laufender Kostenzähler, Strompreis wird im Instanz-Formular gepflegt, Zeile „Heute“ in Kachel und Dashboard
 - **1.6** – Fahrzeug-Grafik zurück in der Kachel (über der Werteliste, Farbe folgt dem Status)
