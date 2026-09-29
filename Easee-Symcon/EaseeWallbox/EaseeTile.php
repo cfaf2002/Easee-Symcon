@@ -46,6 +46,8 @@ trait EaseeTile
             'monthC'    => self::Num((float) $this->GetValue('CostMonth')),
             'charging'  => (bool) $this->GetValue('ChargingActive'),
             'connected' => (bool) $this->GetValue('VehicleConnected'),
+            'phases'    => (int) $this->GetValue('PhaseCount'),
+            'current'   => self::Num((float) $this->GetValue('Current'), 1),
             'limit'     => (int) $this->GetValue('ChargeLimit'),
             'limitMax'  => $this->MaxAmpere(),
             'schedule'  => $schedule,

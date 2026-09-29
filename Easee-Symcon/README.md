@@ -116,10 +116,12 @@ Die Statistik beginnt mit der Installation des Moduls; Werte davor sind nicht en
 
 ## Kachel-Visualisierung
 
-Die Instanz bringt eine **eigene Kachel** mit: Status, Ladeleistung, aktuelle Ladung und Monatswerte,
+Die Instanz bringt eine **eigene Kachel** mit: Ring-Anzeige der Ladeleistung, eine Illustration von Wallbox und Fahrzeug
+(beim Laden fließt animiert Strom durchs Kabel), aktuelle Ladung, Monatswerte und Anschluss,
 dazu Buttons für Start/Pause und für die Stromgrenze (− / +). Ist die Zeitsteuerung aktiv, zeigt die Kachel
 auch deren aktuellen Plan. Einfach die Instanz in der Kachel-Visualisierung hinzufügen.
-Bei kleiner Kachelgröße werden Details automatisch ausgeblendet.
+Bei kleiner Kachelgröße werden Details automatisch ausgeblendet, bei großen Kacheln wächst alles mit.
+Ist der Ladestrom nicht begrenzt, zeigt die Kachel „max“ statt des Hardware-Maximalwerts der Wallbox.
 
 ## Ladeende-Erkennung
 
@@ -181,6 +183,8 @@ Armin Frohwerk
 
 ## Versionen
 
+- **1.4** – Kachel: kein Überlappen mit dem Symcon-Kacheltitel, passende Schrift, wächst mit großen Kacheln mit, „max“ bei unbegrenztem Ladestrom
+- **1.3** – Neu gestaltete Kachel mit Leistungsring und animierter Wallbox-/Fahrzeug-Grafik
 - **1.2** – Ladestrom-Grenze, Zeitsteuerung (Zeitfenster / Fertig bis), Monats- und Jahresstatistik,
   eigene Kachel für die Kachel-Visualisierung, Historie zählt nach einer Pause nur die neu geladene Energie
 - **1.1** – Fehler beim Anlegen der Instanz behoben (Archiv-Logging)
