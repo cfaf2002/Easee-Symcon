@@ -13,17 +13,40 @@ trait EaseeTile
         $html = file_get_contents(__DIR__ . '/module.html');
 
         // Startwerte direkt mitgeben, damit die Kachel sofort gefüllt ist
-        return $html . '<script>handleMessage(' . json_encode(json_encode($this->TileData())) . ');</script>';
+        return $html . '<script>handleMessage(' . json_encode(json_encode($this->TileData(true))) . ');</script>';
     }
 
-    private function PushTile(): void
+    /** @param bool $withBackground Bild mitschicken (nur beim Laden/nach Änderung - kann groß sein) */
+    private function PushTile(bool $withBackground = false): void
     {
         if (method_exists($this, 'UpdateVisualizationValue')) {
-            $this->UpdateVisualizationValue(json_encode($this->TileData()));
+            $this->UpdateVisualizationValue(json_encode($this->TileData($withBackground)));
         }
     }
 
-    private function TileData(): array
+    /** Hintergrundbild als data-URL (leer = kein Bild). */
+    private function TileBackgroundUrl(): string
+    {
+        $base64 = trim($this->ReadPropertyString('TileBackground'));
+        if ($base64 === '') {
+            return '';
+        }
+
+        $head = base64_decode(substr($base64, 0, 24), true) ?: '';
+        if (strncmp($head, "\x89PNG", 4) === 0) {
+            $mime = 'image/png';
+        } elseif (strncmp($head, 'RIFF', 4) === 0 && substr($head, 8, 4) === 'WEBP') {
+            $mime = 'image/webp';
+        } elseif (strncmp($head, 'GIF8', 4) === 0) {
+            $mime = 'image/gif';
+        } else {
+            $mime = 'image/jpeg';
+        }
+
+        return 'data:' . $mime . ';base64,' . $base64;
+    }
+
+    private function TileData(bool $withBackground = false): array
     {
         $opMode = (int) $this->GetValue('Status');
         $power = (float) $this->GetValue('Power');
@@ -33,7 +56,7 @@ trait EaseeTile
             $schedule = (string) $this->GetValue('ScheduleInfo');
         }
 
-        return [
+        $data = [
             'name'      => $this->ReadAttributeString('ChargerName') ?: 'Easee Wallbox',
             'status'    => GetValueFormatted($this->GetIDForIdent('Status')),
             'color'     => self::StatusColor($opMode, (int) $this->GetValue('ErrorCode')),
@@ -56,5 +79,15 @@ trait EaseeTile
             'ok'        => (bool) $this->GetValue('ApiOk') && (bool) $this->GetValue('Online'),
             'updated'   => (int) $this->GetValue('LastUpdate') > 0 ? date('H:i', (int) $this->GetValue('LastUpdate')) : '-'
         ];
+
+        if ($withBackground) {
+            $data['bg'] = [
+                'image' => $this->TileBackgroundUrl(),
+                'dim'   => max(0, min(90, $this->ReadPropertyInteger('TileDim'))) / 100,
+                'blur'  => max(0, min(20, $this->ReadPropertyInteger('TileBlur')))
+            ];
+        }
+
+        return $data;
     }
 }

@@ -6,6 +6,21 @@
         -webkit-font-smoothing: antialiased;
     }
 
+    /* Hintergrundbild (optional) */
+    .ew-bg { position: fixed; inset: 0; z-index: -2; background: center / cover no-repeat; display: none; }
+    .ew-shade { position: fixed; inset: 0; z-index: -1; display: none;
+                background: linear-gradient(180deg, rgba(0,0,0,var(--dim)) 0%, rgba(0,0,0,calc(var(--dim) + .12)) 100%); }
+    body.has-bg .ew-bg, body.has-bg .ew-shade { display: block; }
+    body.has-bg { color: #fff; }
+    body.has-bg .ew { --line: rgba(255,255,255,.16); --muted: rgba(255,255,255,.72); }
+    body.has-bg .ew-panel { background: rgba(20,22,26,.38); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+                            border: 1px solid rgba(255,255,255,.1); border-radius: 16px; padding: clamp(12px, 2vh, 22px) clamp(14px, 2vw, 24px); }
+    body.has-bg .ew-kw, body.has-bg .ew-status { text-shadow: 0 1px 12px rgba(0,0,0,.45); }
+    body.has-bg .ew-track { stroke: rgba(255,255,255,.18); }
+    body.has-bg .ew-scene .box, body.has-bg .ew-scene .car { fill: rgba(255,255,255,.12); stroke: rgba(255,255,255,.55); }
+    body.has-bg .ew-scene .glass { fill: rgba(255,255,255,.14); }
+    body.has-bg .ew-scene .cable { stroke: rgba(255,255,255,.5); }
+
     .ew {
         --c: #95a5a6;
         --line: rgba(127,127,127,.18);
@@ -133,6 +148,8 @@
     }
 </style>
 
+<div class="ew-bg" id="bg"></div>
+<div class="ew-shade" id="shade"></div>
 <div class="ew" id="root">
     <div class="ew-head">
         <span class="ew-status"><span class="ew-dot"></span><span id="status">–</span></span>
@@ -221,6 +238,16 @@
 
     function handleMessage(data) {
         state = JSON.parse(data);
+
+        // Hintergrund kommt nur beim Laden der Kachel bzw. nach einer Änderung in der Instanz
+        if (state.bg) {
+            const has = !!state.bg.image;
+            document.body.classList.toggle('has-bg', has);
+            $('bg').style.backgroundImage = has ? 'url("' + state.bg.image + '")' : 'none';
+            $('bg').style.filter = state.bg.blur > 0 ? 'blur(' + state.bg.blur + 'px)' : 'none';
+            $('bg').style.transform = state.bg.blur > 0 ? 'scale(1.06)' : 'none';
+            $('shade').style.setProperty('--dim', state.bg.dim);
+        }
 
         const root = $('root');
         root.style.setProperty('--c', state.color);

@@ -141,6 +141,38 @@
                 }
             ],
             "expanded": true
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Kachel",
+            "items": [
+                {
+                    "type": "SelectFile",
+                    "name": "TileBackground",
+                    "caption": "Hintergrundbild",
+                    "extensions": ".jpg,.jpeg,.png,.webp"
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "TileDim",
+                    "caption": "Bild abdunkeln",
+                    "suffix": "%",
+                    "minimum": 0,
+                    "maximum": 90
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "TileBlur",
+                    "caption": "Bild weichzeichnen",
+                    "suffix": "px",
+                    "minimum": 0,
+                    "maximum": 20
+                },
+                {
+                    "type": "Label",
+                    "caption": "Tipp: Querformat, am besten unter 500 KB (z. B. 1600 × 1000 Pixel als JPG). Zum Entfernen das Bild im Feld löschen und übernehmen."
+                }
+            ]
         }
     ],
     "actions": [

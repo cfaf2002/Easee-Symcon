@@ -74,6 +74,9 @@ class EaseeWallbox extends IPSModule
         $this->RegisterPropertyBoolean('LogPower', true);
         $this->RegisterPropertyBoolean('LogEnergy', true);
         $this->RegisterPropertyFloat('EnergyPrice', 0.30);
+        $this->RegisterPropertyString('TileBackground', '');
+        $this->RegisterPropertyInteger('TileDim', 55);
+        $this->RegisterPropertyInteger('TileBlur', 0);
         $this->RegisterPropertyBoolean('EnableSchedule', false);
         $this->RegisterPropertyInteger('ScheduleBuffer', 30);
 
@@ -143,6 +146,9 @@ class EaseeWallbox extends IPSModule
             }
         }
         $this->ApplyEnergyPrice($this->ReadPropertyFloat('EnergyPrice'));
+
+        // Hintergrundbild/Einstellungen sofort an offene Kacheln schicken
+        $this->PushTile(true);
 
         if ($this->ReadPropertyBoolean('LogPower')) {
             $this->EnableArchiveLogging('Power', 0);

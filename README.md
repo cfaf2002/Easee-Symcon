@@ -48,6 +48,7 @@ Alle Variablen, Profile und Timer werden automatisch angelegt – ein Setup-Skri
 | Zeitsteuerung aktivieren | Legt die Variablen für die Zeitsteuerung an |
 | Sicherheitspuffer | So viel früher startet „Fertig bis“ als rechnerisch nötig (Standard 30 min) |
 | Strompreis | Arbeitspreis in €/kWh für alle Kostenberechnungen |
+| Hintergrundbild / abdunkeln / weichzeichnen | Optionales Bild hinter der Kachel (siehe unten) |
 | Dashboard-Variable | Legt die HTMLBox-Variable „Dashboard“ an |
 | Ladeleistung archivieren | Aktiviert automatisch das Logging von „Ladeleistung“ (für das Diagramm) |
 | Energie und Kosten als Zähler archivieren | Archiviert „Gesamtenergie“ und „Kosten gesamt“ als Zähler – daraus bildet Symcon Werte pro Tag, Woche, Monat und Jahr |
@@ -151,6 +152,16 @@ und darunter der Knopf zum Starten bzw. Pausieren. Einfach die Instanz in der Ka
 Die Kachel passt sich der Größe an: breit nebeneinander, schmal untereinander (dann ohne Fahrzeug-Grafik); bei kleinen Kacheln bleiben
 Ring, Stromgrenze und Start/Pause. Ist der Ladestrom nicht begrenzt, steht dort „max“.
 
+### Hintergrundbild
+
+Unter **„Kachel“** im Instanz-Formular kannst du ein eigenes Bild (JPG, PNG oder WebP) direkt auswählen, z. B. ein Foto
+deines Carports. Das Bild wird hinter die Kachel gelegt und abgedunkelt (Standard 55 %), damit alle Werte lesbar bleiben;
+die Werteliste bekommt dann einen leicht milchigen Glas-Hintergrund. Optional lässt sich das Bild weichzeichnen.
+Offene Kacheln übernehmen ein neues Bild sofort nach dem Übernehmen.
+
+Tipp: Querformat, am besten unter 500 KB (z. B. 1600 × 1000 Pixel als JPG) – das Bild wird in der Instanz gespeichert
+und beim Öffnen der Kachel mitgeladen. Zum Entfernen das Bild im Feld löschen und übernehmen.
+
 ## Ladeende-Erkennung
 
 Ein Ladevorgang gilt erst als beendet, wenn **zwei Abrufe hintereinander** kein Strom fließt.
@@ -211,6 +222,7 @@ Armin Frohwerk
 
 ## Versionen
 
+- **1.8** – Eigenes Hintergrundbild für die Kachel (mit Abdunkeln und Weichzeichnen)
 - **1.7** – Energie und Kosten pro Tag (Variablen „heute“, Archiv als Zähler für Tag/Woche/Monat/Jahr), laufender Kostenzähler, Strompreis wird im Instanz-Formular gepflegt, Zeile „Heute“ in Kachel und Dashboard
 - **1.6** – Fahrzeug-Grafik zurück in der Kachel (über der Werteliste, Farbe folgt dem Status)
 - **1.5** – Kachel neu gestaltet: ruhiges Layout mit Leistungsring und Werteliste, Linien-Icons, sauberes Verhalten bei allen Größen
