@@ -1,0 +1,109 @@
+<style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: inherit; }
+    .ew { display: flex; flex-direction: column; gap: 8px; height: 100%; padding: 10px 12px; }
+    .ew-top { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; }
+    .ew-dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
+    .ew-name { opacity: .6; font-weight: 400; font-size: 12px; margin-left: auto; white-space: nowrap; }
+    .ew-power { font-size: 34px; font-weight: 800; line-height: 1; }
+    .ew-power small { font-size: 14px; font-weight: 500; opacity: .7; }
+    .ew-bar { height: 8px; border-radius: 6px; background: rgba(127,127,127,.25); overflow: hidden; }
+    .ew-bar div { height: 100%; background: linear-gradient(90deg,#3498db,#2ecc71); transition: width .4s; }
+    .ew-row { display: flex; gap: 8px; }
+    .ew-cell { flex: 1; background: rgba(127,127,127,.12); border-radius: 8px; padding: 6px 8px; }
+    .ew-l { font-size: 11px; opacity: .65; }
+    .ew-v { font-size: 15px; font-weight: 700; white-space: nowrap; }
+    .ew-sched { font-size: 12px; opacity: .8; }
+    .ew-sched:empty { display: none; }
+    .ew-ctrl { display: flex; gap: 8px; align-items: center; margin-top: auto; }
+    .ew-btn { border: 0; border-radius: 8px; padding: 8px 12px; font-weight: 700; font-size: 13px; cursor: pointer;
+              background: rgba(127,127,127,.2); color: inherit; }
+    .ew-btn:disabled { opacity: .4; cursor: default; }
+    .ew-main { flex: 1; color: #fff; }
+    .ew-start { background: #2ecc71; }
+    .ew-stop { background: #e67e22; }
+    .ew-limit { font-weight: 700; min-width: 42px; text-align: center; }
+    .ew-foot { font-size: 10px; opacity: .45; text-align: right; }
+    @media (max-height: 220px) { .ew-row, .ew-sched, .ew-foot { display: none; } }
+    @media (max-height: 140px) { .ew-ctrl, .ew-bar { display: none; } .ew-power { font-size: 26px; } }
+</style>
+
+<div class="ew">
+    <div class="ew-top">
+        <span class="ew-dot" id="dot"></span>
+        <span id="status">-</span>
+        <span class="ew-name" id="name"></span>
+    </div>
+
+    <div class="ew-power"><span id="power">-</span> <small>kW</small></div>
+    <div class="ew-bar"><div id="bar" style="width:0"></div></div>
+
+    <div class="ew-row">
+        <div class="ew-cell"><div class="ew-l">Ladung</div><div class="ew-v"><span id="sessionE">-</span> kWh</div><div class="ew-l"><span id="sessionC">-</span> €</div></div>
+        <div class="ew-cell"><div class="ew-l">Dieser Monat</div><div class="ew-v"><span id="monthE">-</span> kWh</div><div class="ew-l"><span id="monthC">-</span> €</div></div>
+    </div>
+
+    <div class="ew-sched" id="schedule"></div>
+
+    <div class="ew-ctrl">
+        <button class="ew-btn ew-main" id="toggle" onclick="toggleCharging()">-</button>
+        <button class="ew-btn" id="minus" onclick="changeLimit(-1)">−</button>
+        <span class="ew-limit"><span id="limit">-</span> A</span>
+        <button class="ew-btn" id="plus" onclick="changeLimit(1)">+</button>
+    </div>
+
+    <div class="ew-foot">Stand <span id="updated">-</span></div>
+</div>
+
+<script>
+    let state = null;
+
+    function handleMessage(data) {
+        state = JSON.parse(data);
+
+        const set = (id, value) => { document.getElementById(id).textContent = value; };
+
+        set('status', state.status);
+        set('name', state.name);
+        set('power', state.power);
+        set('sessionE', state.sessionE);
+        set('sessionC', state.sessionC);
+        set('monthE', state.monthE);
+        set('monthC', state.monthC);
+        set('limit', state.limit > 0 ? state.limit : '-');
+        set('schedule', state.schedule ? '🕒 ' + state.schedule : '');
+        set('updated', state.updated + (state.ok ? '' : ' · keine Verbindung'));
+
+        document.getElementById('dot').style.background = state.color;
+        document.getElementById('bar').style.width = state.percent + '%';
+
+        const toggle = document.getElementById('toggle');
+        toggle.textContent = state.charging ? 'Pausieren' : 'Laden starten';
+        toggle.className = 'ew-btn ew-main ' + (state.charging ? 'ew-stop' : 'ew-start');
+        toggle.disabled = !state.connected;
+
+        document.getElementById('minus').disabled = state.limit <= 6;
+        document.getElementById('plus').disabled = state.limit >= state.limitMax;
+    }
+
+    function toggleCharging() {
+        if (!state) return;
+        document.getElementById('toggle').disabled = true;
+        requestAction('ChargingActive', !state.charging);
+    }
+
+    // Mehrere Klicks sammeln und erst nach kurzer Pause senden
+    let limitTimer = null;
+
+    function changeLimit(step) {
+        if (!state || state.limit <= 0) return;
+        const value = Math.max(6, Math.min(state.limitMax, state.limit + step));
+        state.limit = value;
+        document.getElementById('limit').textContent = value;
+        document.getElementById('minus').disabled = value <= 6;
+        document.getElementById('plus').disabled = value >= state.limitMax;
+
+        clearTimeout(limitTimer);
+        limitTimer = setTimeout(() => requestAction('ChargeLimit', value), 1000);
+    }
+</script>
