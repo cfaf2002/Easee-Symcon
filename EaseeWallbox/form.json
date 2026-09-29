@@ -41,9 +41,18 @@
                     "name": "MaxPowerKW",
                     "caption": "Maximale Ladeleistung",
                     "options": [
-                        { "caption": "11 kW", "value": 11 },
-                        { "caption": "22 kW", "value": 22 },
-                        { "caption": "7,4 kW", "value": 7 }
+                        {
+                            "caption": "11 kW",
+                            "value": 11
+                        },
+                        {
+                            "caption": "22 kW",
+                            "value": 22
+                        },
+                        {
+                            "caption": "7,4 kW",
+                            "value": 7
+                        }
                     ]
                 }
             ]
@@ -72,6 +81,29 @@
                     "type": "CheckBox",
                     "name": "NotifyError",
                     "caption": "Bei Fehlern der Wallbox oder der API"
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Zeitsteuerung",
+            "items": [
+                {
+                    "type": "CheckBox",
+                    "name": "EnableSchedule",
+                    "caption": "Zeitsteuerung aktivieren (legt die Variablen dafür an)"
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "ScheduleBuffer",
+                    "caption": "Sicherheitspuffer bei „Fertig bis“",
+                    "suffix": "Minuten",
+                    "minimum": 0,
+                    "maximum": 240
+                },
+                {
+                    "type": "Label",
+                    "caption": "Modus, Zeiten und Ziel-Energie werden über die Variablen bzw. die Kachel eingestellt. Manuelles Schalten von „Laden“ übersteuert die Zeitsteuerung bis zum Abstecken."
                 }
             ]
         },
@@ -134,15 +166,49 @@
                             }
                         ]
                     }
+                },
+                {
+                    "type": "PopupButton",
+                    "caption": "Statistik löschen",
+                    "popup": {
+                        "caption": "Monats- und Jahresstatistik wirklich löschen?",
+                        "items": [
+                            {
+                                "type": "Button",
+                                "caption": "Ja, löschen",
+                                "onClick": "EASEE_ResetStatistics($id); echo 'Statistik gelöscht.';"
+                            }
+                        ]
+                    }
                 }
             ]
         }
     ],
     "status": [
-        { "code": 102, "icon": "active", "caption": "Verbunden" },
-        { "code": 104, "icon": "inactive", "caption": "Instanz ist deaktiviert" },
-        { "code": 201, "icon": "error", "caption": "Bitte Benutzername und Passwort eintragen" },
-        { "code": 202, "icon": "error", "caption": "Anmeldung fehlgeschlagen - Zugangsdaten prüfen" },
-        { "code": 203, "icon": "error", "caption": "Easee API nicht erreichbar oder Fehler (siehe \"Letzter Fehler\")" }
+        {
+            "code": 102,
+            "icon": "active",
+            "caption": "Verbunden"
+        },
+        {
+            "code": 104,
+            "icon": "inactive",
+            "caption": "Instanz ist deaktiviert"
+        },
+        {
+            "code": 201,
+            "icon": "error",
+            "caption": "Bitte Benutzername und Passwort eintragen"
+        },
+        {
+            "code": 202,
+            "icon": "error",
+            "caption": "Anmeldung fehlgeschlagen - Zugangsdaten prüfen"
+        },
+        {
+            "code": 203,
+            "icon": "error",
+            "caption": "Easee API nicht erreichbar oder Fehler (siehe \"Letzter Fehler\")"
+        }
     ]
 }

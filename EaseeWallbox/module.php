@@ -3,22 +3,30 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/EaseeDashboard.php';
+require_once __DIR__ . '/EaseeSchedule.php';
+require_once __DIR__ . '/EaseeTile.php';
 
 /**
  * Easee Wallbox
  *
  * Liest den Zustand einer Easee-Wallbox über die Easee Cloud
- * (Observations-API) aus und erlaubt Laden starten/pausieren sowie
- * das dauerhafte Verriegeln des Kabels.
+ * (Observations-API) aus und steuert sie: Laden starten/pausieren,
+ * Ladestrom begrenzen, Kabel dauerhaft verriegeln, Zeitsteuerung.
+ *
+ * Autor: Armin Frohwerk
  */
 class EaseeWallbox extends IPSModule
 {
     use EaseeDashboard;
+    use EaseeSchedule;
+    use EaseeTile;
 
     private const API_HOST = 'https://api.easee.com';
 
     // Observation-IDs der Easee-API
     private const OBS_CABLE_PERMANENT = 30;
+    private const OBS_MAX_CURRENT = 47;
+    private const OBS_DYNAMIC_CURRENT = 48;
     private const OBS_CURRENT_L1 = 73;
     private const OBS_CURRENT_L2 = 74;
     private const OBS_CURRENT_L3 = 75;
@@ -38,6 +46,7 @@ class EaseeWallbox extends IPSModule
 
     private const ARCHIVE_GUID = '{43192F0B-135B-4CE7-A0A7-1475603F3060}';
     private const HISTORY_MAX = 30;
+    private const STATS_MONTHS = 36;
 
     // Anzahl Abrufe ohne Strom, bevor ein Ladevorgang als beendet gilt
     // (schützt vor kurzen Aussetzern, z. B. Balancing der Fahrzeugbatterie)
@@ -63,9 +72,10 @@ class EaseeWallbox extends IPSModule
         $this->RegisterPropertyBoolean('NotifyError', true);
         $this->RegisterPropertyBoolean('Dashboard', true);
         $this->RegisterPropertyBoolean('LogPower', true);
+        $this->RegisterPropertyBoolean('EnableSchedule', false);
+        $this->RegisterPropertyInteger('ScheduleBuffer', 30);
 
-        // Interne Daten - nicht mehr als versteckte Variablen, sondern
-        // als Attribute direkt an der Instanz
+        // Interne Daten
         $this->RegisterAttributeString('AccessToken', '');
         $this->RegisterAttributeString('RefreshToken', '');
         $this->RegisterAttributeInteger('TokenExpires', 0);
@@ -73,11 +83,20 @@ class EaseeWallbox extends IPSModule
         $this->RegisterAttributeString('ActiveChargerID', '');
         $this->RegisterAttributeString('ChargerName', '');
         $this->RegisterAttributeInteger('SessionStart', 0);
+        $this->RegisterAttributeFloat('SessionStartEnergy', 0);
         $this->RegisterAttributeInteger('StopPending', 0);
         $this->RegisterAttributeString('History', '[]');
+        $this->RegisterAttributeFloat('LastLifetime', 0);
+        $this->RegisterAttributeString('Stats', '{}');
+        $this->RegisterAttributeInteger('LastPhases', 3);
+        $this->RegisterScheduleAttributes();
 
         $this->RegisterTimer('UpdateTimer', 0, 'EASEE_Update($_IPS[\'TARGET\']);');
         $this->RegisterTimer('QuickRefresh', 0, 'IPS_RequestAction($_IPS[\'TARGET\'], \'QuickRefresh\', true);');
+        $this->RegisterTimer('ScheduleTimer', 0, 'IPS_RequestAction($_IPS[\'TARGET\'], \'ScheduleTick\', true);');
+
+        // Eigene Kachel in der Kachel-Visualisierung (HTML-SDK)
+        $this->SetVisualizationType(1);
     }
 
     public function ApplyChanges()
@@ -88,6 +107,7 @@ class EaseeWallbox extends IPSModule
 
         $this->CreateProfiles();
         $this->CreateVariables();
+        $this->CreateScheduleVariables();
 
         // Zugangsdaten geändert -> alte Tokens verwerfen
         $hash = md5($this->ReadPropertyString('Username') . '|' . $this->ReadPropertyString('Password'));
@@ -114,17 +134,20 @@ class EaseeWallbox extends IPSModule
 
         if (!$this->ReadPropertyBoolean('Active')) {
             $this->SetTimerInterval('UpdateTimer', 0);
+            $this->SetTimerInterval('ScheduleTimer', 0);
             $this->SetStatus(104);
             return;
         }
 
         if (trim($this->ReadPropertyString('Username')) === '' || $this->ReadPropertyString('Password') === '') {
             $this->SetTimerInterval('UpdateTimer', 0);
+            $this->SetTimerInterval('ScheduleTimer', 0);
             $this->SetStatus(201);
             return;
         }
 
         $this->SetTimerInterval('UpdateTimer', max(1, $this->ReadPropertyInteger('UpdateInterval')) * 60 * 1000);
+        $this->UpdateScheduleTimer();
         $this->SetStatus(102);
 
         // Ersten Abruf kurz nach dem Übernehmen starten (nicht blockierend)
@@ -145,6 +168,10 @@ class EaseeWallbox extends IPSModule
                 $Value ? $this->StartCharging() : $this->StopCharging();
                 break;
 
+            case 'ChargeLimit':
+                $this->SetChargeLimit((int) $Value);
+                break;
+
             case 'CableLockPermanent':
                 $this->SetCableLockPermanent((bool) $Value);
                 break;
@@ -158,8 +185,14 @@ class EaseeWallbox extends IPSModule
                 $this->Update();
                 break;
 
+            case 'ScheduleTick':
+                $this->EvaluateSchedule();
+                break;
+
             default:
-                throw new Exception('Unbekannte Aktion: ' . $Ident);
+                if (!$this->HandleScheduleAction($Ident, $Value)) {
+                    throw new Exception('Unbekannte Aktion: ' . $Ident);
+                }
         }
     }
 
@@ -185,34 +218,52 @@ class EaseeWallbox extends IPSModule
             $ok = false;
         }
 
-        $this->RefreshDashboard();
+        if ($ok) {
+            $this->EvaluateSchedule(false);
+        }
+
+        $this->RefreshViews();
 
         return $ok;
     }
 
-    /** Laden fortsetzen/starten (resume_charging). */
+    /** Laden fortsetzen/starten (manuell - übersteuert die Zeitsteuerung bis zum Abstecken). */
     public function StartCharging(): bool
     {
-        return $this->RunCommand('resume_charging', null, function () {
-            $this->WriteAttributeInteger('StopPending', 0);
-        });
+        $this->MarkManualOverride();
+        return $this->SendChargingCommand(true);
     }
 
-    /** Laden pausieren (pause_charging). */
+    /** Laden pausieren (manuell - übersteuert die Zeitsteuerung bis zum Abstecken). */
     public function StopCharging(): bool
     {
-        return $this->RunCommand('pause_charging', null, function () {
-            // Nächster Abruf ohne Strom beendet die Session sofort
-            if ($this->GetValue('ChargingActive')) {
-                $this->WriteAttributeInteger('StopPending', self::STOP_CONFIRM_CYCLES - 1);
+        $this->MarkManualOverride();
+        return $this->SendChargingCommand(false);
+    }
+
+    /**
+     * Ladestrom begrenzen (Ampere je Phase). Wird als "dynamischer"
+     * Wert gesetzt: schont den Speicher der Wallbox, gilt aber nur bis
+     * zu deren nächstem Neustart.
+     */
+    public function SetChargeLimit(int $Ampere): bool
+    {
+        $max = $this->MaxAmpere();
+        $Ampere = max(6, min($max, $Ampere));
+
+        return $this->RunApi(
+            'settings',
+            ['dynamicChargerCurrent' => $Ampere],
+            function () use ($Ampere) {
+                $this->SetValue('ChargeLimit', $Ampere);
             }
-        });
+        );
     }
 
     /** Kabel dauerhaft verriegeln (true) oder freigeben (false). */
     public function SetCableLockPermanent(bool $State): bool
     {
-        return $this->RunCommand('lock_state', ['state' => $State], function () use ($State) {
+        return $this->RunApi('commands/lock_state', ['state' => $State], function () use ($State) {
             $this->SetValue('CableLockPermanent', $State);
         });
     }
@@ -226,7 +277,7 @@ class EaseeWallbox extends IPSModule
         $this->SetValue('SessionCost', round($this->GetValue('SessionEnergy') * $Price, 2));
         $this->SetValue('LifetimeCost', round($this->GetValue('LifetimeEnergy') * $Price, 2));
 
-        $this->RefreshDashboard();
+        $this->RefreshViews();
     }
 
     /** Listet alle Charger des Kontos auf (auch als Verbindungstest). */
@@ -261,7 +312,7 @@ class EaseeWallbox extends IPSModule
     public function ResetHistory(): void
     {
         $this->WriteAttributeString('History', '[]');
-        $this->RefreshDashboard();
+        $this->RefreshViews();
     }
 
     /**
@@ -282,9 +333,27 @@ class EaseeWallbox extends IPSModule
         $history = array_slice($history, -self::HISTORY_MAX);
 
         $this->WriteAttributeString('History', json_encode($history));
-        $this->RefreshDashboard();
+        $this->RefreshViews();
 
         return count($history);
+    }
+
+    /** Monatsstatistik als JSON: {"2026-09": {"energy": kWh, "cost": €}, ...} */
+    public function GetStatistics(): string
+    {
+        $out = [];
+        foreach ($this->ReadStats() as $month => $s) {
+            $out[$month] = ['energy' => round($s['e'], 2), 'cost' => round($s['c'], 2)];
+        }
+        return json_encode($out);
+    }
+
+    /** Monats-/Jahresstatistik löschen. */
+    public function ResetStatistics(): void
+    {
+        $this->WriteAttributeString('Stats', '{}');
+        $this->UpdateStatVariables();
+        $this->RefreshViews();
     }
 
     // =================================================================
@@ -301,8 +370,8 @@ class EaseeWallbox extends IPSModule
         $lifetimeEnergy = (float) ($v[self::OBS_LIFETIME_ENERGY] ?? 0);
         $errorCode = (int) ($v[self::OBS_ERROR_CODE] ?? 0);
         $price = (float) $this->GetValue('EnergyPrice');
+        $phaseCount = self::PhaseCount($outputPhase);
 
-        $sessionCost = round($sessionEnergy * $price, 2);
         $vehicleConnected = in_array($opMode, [2, 3, 4, 6, 7], true);
 
         // --- Ladevorgang erkennen (mit Schutzzeit gegen Aussetzer) ---
@@ -316,6 +385,9 @@ class EaseeWallbox extends IPSModule
             if (!$wasCharging) {
                 $isCharging = true;
                 $this->WriteAttributeInteger('SessionStart', time());
+                // Easee zählt die Session-Energie ab dem Einstecken; nach einer
+                // Pause wird nur der neue Anteil dieser Ladung gewertet
+                $this->WriteAttributeFloat('SessionStartEnergy', $sessionEnergy);
                 if ($this->ReadPropertyBoolean('NotifyStart')) {
                     $this->Notify('⚡ Easee Wallbox', 'Ladevorgang gestartet.');
                 }
@@ -326,11 +398,14 @@ class EaseeWallbox extends IPSModule
             if (!$vehicleConnected || $pending >= self::STOP_CONFIRM_CYCLES) {
                 $isCharging = false;
                 $pending = 0;
-                $this->FinishSession($sessionEnergy, $sessionCost);
+                $this->FinishSession($sessionEnergy, $price);
             }
         }
 
         $this->WriteAttributeInteger('StopPending', $pending);
+
+        // --- Monats-/Jahresstatistik über den Zählerstand ---
+        $this->AccumulateStats($lifetimeEnergy, $price);
 
         // --- Fehler neu aufgetreten? ---
         $wasError = (int) $this->GetValue('ErrorCode') !== 0;
@@ -338,18 +413,31 @@ class EaseeWallbox extends IPSModule
             $this->Notify('⚠️ Easee Wallbox', self::ErrorText($errorCode));
         }
 
+        if ($phaseCount > 0) {
+            $this->WriteAttributeInteger('LastPhases', $phaseCount);
+        }
+
+        // Ladestrom-Grenze: dynamischer Wert, sonst der feste Maximalwert
+        $limit = (float) ($v[self::OBS_DYNAMIC_CURRENT] ?? 0);
+        if ($limit <= 0) {
+            $limit = (float) ($v[self::OBS_MAX_CURRENT] ?? 0);
+        }
+
         // --- Variablen schreiben ---
         $this->SetValue('Status', $opMode);
         $this->SetValue('ChargingActive', $isCharging);
         $this->SetValue('Power', round($power, 2));
         $this->SetValue('Current', round($current, 1));
-        $this->SetValue('PhaseCount', self::PhaseCount($outputPhase));
+        if ($limit > 0) {
+            $this->SetValue('ChargeLimit', (int) round($limit));
+        }
+        $this->SetValue('PhaseCount', $phaseCount);
         $this->SetValue('CurrentL1', round((float) ($v[self::OBS_CURRENT_L1] ?? 0), 1));
         $this->SetValue('CurrentL2', round((float) ($v[self::OBS_CURRENT_L2] ?? 0), 1));
         $this->SetValue('CurrentL3', round((float) ($v[self::OBS_CURRENT_L3] ?? 0), 1));
         $this->SetValue('SessionEnergy', round($sessionEnergy, 2));
-        $this->SetValue('SessionCost', $sessionCost);
         $this->SetValue('LifetimeEnergy', round($lifetimeEnergy, 2));
+        $this->SetValue('SessionCost', round($sessionEnergy * $price, 2));
         $this->SetValue('LifetimeCost', round($lifetimeEnergy * $price, 2));
         $this->SetValue('VehicleConnected', $vehicleConnected);
         $this->SetValue('CableLocked', self::ToBool($v[self::OBS_CABLE_LOCKED] ?? false));
@@ -364,9 +452,12 @@ class EaseeWallbox extends IPSModule
         $this->SetValue('LastUpdate', time());
     }
 
-    private function FinishSession(float $energy, float $cost): void
+    private function FinishSession(float $sessionEnergy, float $price): void
     {
         $start = $this->ReadAttributeInteger('SessionStart');
+        $base = $this->ReadAttributeFloat('SessionStartEnergy');
+        $energy = ($base > 0 && $sessionEnergy >= $base) ? $sessionEnergy - $base : $sessionEnergy;
+        $cost = round($energy * $price, 2);
         $end = time();
 
         if ($start > 0) {
@@ -376,7 +467,7 @@ class EaseeWallbox extends IPSModule
                 'end'      => $end,
                 'duration' => max(0, $end - $start),
                 'energy'   => round($energy, 2),
-                'cost'     => round($cost, 2)
+                'cost'     => $cost
             ];
             $history = array_slice($history, -self::HISTORY_MAX);
             $this->WriteAttributeString('History', json_encode($history));
@@ -396,14 +487,93 @@ class EaseeWallbox extends IPSModule
         }
     }
 
-    private function RunCommand(string $command, ?array $body, callable $onSuccess): bool
+    // =================================================================
+    // Statistik
+    // =================================================================
+
+    private function AccumulateStats(float $lifetimeEnergy, float $price): void
+    {
+        $last = $this->ReadAttributeFloat('LastLifetime');
+        $this->WriteAttributeFloat('LastLifetime', $lifetimeEnergy);
+
+        $delta = $lifetimeEnergy - $last;
+
+        // Erster Abruf oder unplausibler Sprung (Zähler getauscht) -> nicht werten
+        if ($last <= 0 || $delta <= 0 || $delta > 200) {
+            $this->UpdateStatVariables();
+            return;
+        }
+
+        $stats = $this->ReadStats();
+        $month = date('Y-m');
+        $stats[$month] = [
+            'e' => ($stats[$month]['e'] ?? 0) + $delta,
+            'c' => ($stats[$month]['c'] ?? 0) + $delta * $price
+        ];
+
+        ksort($stats);
+        $stats = array_slice($stats, -self::STATS_MONTHS, null, true);
+        $this->WriteAttributeString('Stats', json_encode($stats));
+
+        $this->UpdateStatVariables();
+    }
+
+    private function ReadStats(): array
+    {
+        $stats = json_decode($this->ReadAttributeString('Stats'), true);
+        return is_array($stats) ? $stats : [];
+    }
+
+    private function UpdateStatVariables(): void
+    {
+        $stats = $this->ReadStats();
+        $month = $stats[date('Y-m')] ?? ['e' => 0, 'c' => 0];
+
+        $yearE = 0.0;
+        $yearC = 0.0;
+        foreach ($stats as $key => $s) {
+            if (strpos($key, date('Y') . '-') === 0) {
+                $yearE += $s['e'];
+                $yearC += $s['c'];
+            }
+        }
+
+        $this->SetValue('EnergyMonth', round($month['e'], 2));
+        $this->SetValue('CostMonth', round($month['c'], 2));
+        $this->SetValue('EnergyYear', round($yearE, 2));
+        $this->SetValue('CostYear', round($yearC, 2));
+    }
+
+    // =================================================================
+    // Befehle
+    // =================================================================
+
+    /** Laden fortsetzen (true) oder pausieren (false) - ohne Übersteuerungs-Logik. */
+    private function SendChargingCommand(bool $start): bool
+    {
+        if ($start) {
+            return $this->RunApi('commands/resume_charging', null, function () {
+                $this->WriteAttributeInteger('StopPending', 0);
+            });
+        }
+
+        return $this->RunApi('commands/pause_charging', null, function () {
+            // Nächster Abruf ohne Strom beendet die Session sofort
+            if ($this->GetValue('ChargingActive')) {
+                $this->WriteAttributeInteger('StopPending', self::STOP_CONFIRM_CYCLES - 1);
+            }
+        });
+    }
+
+    /** POST an /api/chargers/{id}/{path} mit anschließender Aktualisierung. */
+    private function RunApi(string $path, ?array $body, callable $onSuccess): bool
     {
         try {
             $chargerId = $this->GetChargerId();
-            $this->Api('POST', '/api/chargers/' . rawurlencode($chargerId) . '/commands/' . $command, $body);
+            $this->Api('POST', '/api/chargers/' . rawurlencode($chargerId) . '/' . $path, $body);
             $onSuccess();
             $this->ReportSuccess();
-            $this->SendDebug('Befehl', $command . ' gesendet', 0);
+            $this->SendDebug('Befehl', $path . ' ' . json_encode($body), 0);
         } catch (Exception $e) {
             $this->ReportError($e);
             echo 'Fehler: ' . $e->getMessage();
@@ -412,6 +582,7 @@ class EaseeWallbox extends IPSModule
 
         // Wallbox braucht einen Moment - Zustand in 15 s neu holen
         $this->ScheduleQuickRefresh(15);
+        $this->RefreshViews();
 
         return true;
     }
@@ -446,11 +617,18 @@ class EaseeWallbox extends IPSModule
         $this->SetTimerInterval('QuickRefresh', $seconds * 1000);
     }
 
-    private function RefreshDashboard(): void
+    /** Dashboard-Variable und Kachel neu aufbauen. */
+    private function RefreshViews(): void
     {
         if ($this->ReadPropertyBoolean('Dashboard') && @$this->GetIDForIdent('Dashboard') !== false) {
             $this->SetValue('Dashboard', $this->BuildDashboard());
         }
+        $this->PushTile();
+    }
+
+    private function MaxAmpere(): int
+    {
+        return $this->ReadPropertyInteger('MaxPowerKW') >= 22 ? 32 : 16;
     }
 
     // =================================================================
@@ -462,7 +640,8 @@ class EaseeWallbox extends IPSModule
         $chargerId = $this->GetChargerId();
 
         $ids = implode(',', [
-            self::OBS_CABLE_PERMANENT, self::OBS_CURRENT_L1, self::OBS_CURRENT_L2, self::OBS_CURRENT_L3,
+            self::OBS_CABLE_PERMANENT, self::OBS_MAX_CURRENT, self::OBS_DYNAMIC_CURRENT,
+            self::OBS_CURRENT_L1, self::OBS_CURRENT_L2, self::OBS_CURRENT_L3,
             self::OBS_FIRMWARE, self::OBS_REASON, self::OBS_SMART_CHARGING, self::OBS_CABLE_LOCKED,
             self::OBS_OP_MODE, self::OBS_OUTPUT_PHASE, self::OBS_OUTPUT_CURRENT, self::OBS_ERROR_CODE,
             self::OBS_TOTAL_POWER, self::OBS_SESSION_ENERGY, self::OBS_LIFETIME_ENERGY,
@@ -696,6 +875,8 @@ class EaseeWallbox extends IPSModule
         $this->RegisterProfile('EaseeWB.EUR', VARIABLETYPE_FLOAT, ' €', 2, 'Euro');
         $this->RegisterProfile('EaseeWB.Price', VARIABLETYPE_FLOAT, ' €/kWh', 4, 'Euro', 0, 2, 0.01);
         $this->RegisterProfile('EaseeWB.dBm', VARIABLETYPE_INTEGER, ' dBm', 0, 'Intensity');
+        $this->RegisterProfile('EaseeWB.Ampere', VARIABLETYPE_INTEGER, ' A', 0, 'Electricity', 6, $this->MaxAmpere(), 1);
+        $this->RegisterProfile('EaseeWB.Target', VARIABLETYPE_FLOAT, ' kWh', 0, 'Battery', 1, 100, 1);
 
         $this->RegisterProfile('EaseeWB.OpMode', VARIABLETYPE_INTEGER, '', 0, 'Car', 0, 0, 0, [
             [0, 'Offline', '', 0x555555],
@@ -707,6 +888,12 @@ class EaseeWallbox extends IPSModule
             [6, 'Bereit zum Laden', '', 0x3498DB],
             [7, 'Wartet auf Freigabe', '', 0xE67E22],
             [8, 'Abmeldung läuft', '', 0x7F8C8D]
+        ]);
+
+        $this->RegisterProfile('EaseeWB.Schedule', VARIABLETYPE_INTEGER, '', 0, 'Clock', 0, 2, 0, [
+            [0, 'Aus', '', -1],
+            [1, 'Zeitfenster', '', 0x3498DB],
+            [2, 'Fertig bis', '', 0x2ECC71]
         ]);
     }
 
@@ -741,16 +928,21 @@ class EaseeWallbox extends IPSModule
         $this->RegisterVariableBoolean('ChargingActive', 'Laden', '~Switch', 2);
         $this->RegisterVariableFloat('Power', 'Ladeleistung', 'EaseeWB.kW', 3);
         $this->RegisterVariableFloat('Current', 'Ladestrom', '~Ampere', 4);
-        $this->RegisterVariableInteger('PhaseCount', 'Phasen', '', 5);
-        $this->RegisterVariableFloat('CurrentL1', 'Strom L1', '~Ampere', 6);
-        $this->RegisterVariableFloat('CurrentL2', 'Strom L2', '~Ampere', 7);
-        $this->RegisterVariableFloat('CurrentL3', 'Strom L3', '~Ampere', 8);
+        $this->RegisterVariableInteger('ChargeLimit', 'Ladestrom-Grenze', 'EaseeWB.Ampere', 5);
+        $this->RegisterVariableInteger('PhaseCount', 'Phasen', '', 6);
+        $this->RegisterVariableFloat('CurrentL1', 'Strom L1', '~Ampere', 7);
+        $this->RegisterVariableFloat('CurrentL2', 'Strom L2', '~Ampere', 8);
+        $this->RegisterVariableFloat('CurrentL3', 'Strom L3', '~Ampere', 9);
 
         $this->RegisterVariableFloat('SessionEnergy', 'Session Energie', 'EaseeWB.kWh', 10);
         $this->RegisterVariableFloat('SessionCost', 'Session Kosten', 'EaseeWB.EUR', 11);
         $this->RegisterVariableFloat('LifetimeEnergy', 'Gesamtenergie', 'EaseeWB.kWh', 12);
         $this->RegisterVariableFloat('LifetimeCost', 'Gesamtkosten (geschätzt)', 'EaseeWB.EUR', 13);
         $this->RegisterVariableFloat('EnergyPrice', 'Strompreis', 'EaseeWB.Price', 14);
+        $this->RegisterVariableFloat('EnergyMonth', 'Energie dieser Monat', 'EaseeWB.kWh', 15);
+        $this->RegisterVariableFloat('CostMonth', 'Kosten dieser Monat', 'EaseeWB.EUR', 16);
+        $this->RegisterVariableFloat('EnergyYear', 'Energie dieses Jahr', 'EaseeWB.kWh', 17);
+        $this->RegisterVariableFloat('CostYear', 'Kosten dieses Jahr', 'EaseeWB.EUR', 18);
 
         $this->RegisterVariableBoolean('VehicleConnected', 'Fahrzeug verbunden', '~Switch', 20);
         $this->RegisterVariableBoolean('CableLocked', 'Kabel verriegelt', '~Switch', 21);
@@ -771,6 +963,7 @@ class EaseeWallbox extends IPSModule
         $this->MaintainVariable('Dashboard', 'Dashboard', VARIABLETYPE_STRING, '~HTMLBox', 50, $this->ReadPropertyBoolean('Dashboard'));
 
         $this->EnableAction('ChargingActive');
+        $this->EnableAction('ChargeLimit');
         $this->EnableAction('CableLockPermanent');
         $this->EnableAction('EnergyPrice');
 

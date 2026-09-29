@@ -1,0 +1,205 @@
+<style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: inherit; }
+    .ew { --c: #95a5a6; display: flex; flex-direction: column; gap: 10px; height: 100%; padding: 12px 14px; overflow: hidden; }
+
+    /* Kopf */
+    .ew-top { display: flex; align-items: center; gap: 8px; }
+    .ew-pill { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px; border-radius: 999px; font-weight: 700; font-size: 13px;
+               background: color-mix(in srgb, var(--c) 22%, transparent); color: var(--c); border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); }
+    .ew-pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
+    .ew.charging .ew-pill i { animation: pulse 1.4s ease-in-out infinite; }
+    .ew-name { margin-left: auto; font-size: 12px; opacity: .55; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* Hauptbereich: Ring + Illustration */
+    .ew-hero { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; gap: 6%; }
+    .ew-ring { position: relative; height: 100%; max-height: 190px; aspect-ratio: 1; flex: none; }
+    .ew-ring svg { width: 100%; height: 100%; transform: rotate(135deg); }
+    .ew-ring .track { stroke: rgba(127,127,127,.18); }
+    .ew-ring .arc { stroke: url(#grad); transition: stroke-dashoffset .8s ease; filter: drop-shadow(0 0 6px rgba(46,204,113,.45)); }
+    .ew-ring .spin { stroke: var(--c); opacity: 0; transform-origin: 60px 60px; }
+    .ew.charging .ew-ring .spin { opacity: .9; animation: spin 2.2s linear infinite; }
+    .ew-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .ew-kw { font-size: clamp(22px, 9vh, 40px); font-weight: 800; line-height: 1; letter-spacing: -.5px; }
+    .ew-unit { font-size: 12px; opacity: .6; margin-top: 2px; }
+    .ew-sub { font-size: 11px; opacity: .55; margin-top: 4px; }
+
+    .ew-scene { height: 100%; max-height: 170px; aspect-ratio: 1.45; flex: 0 1 auto; min-width: 0; }
+    .ew-scene .box { fill: rgba(127,127,127,.22); stroke: rgba(127,127,127,.45); }
+    .ew-scene .led { fill: var(--c); filter: drop-shadow(0 0 4px var(--c)); }
+    .ew.charging .ew-scene .led { animation: pulse 1.4s ease-in-out infinite; }
+    .ew-scene .cable { fill: none; stroke: rgba(127,127,127,.55); stroke-width: 3; stroke-linecap: round; }
+    .ew-scene .flow { fill: none; stroke: #2ecc71; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 2 9; opacity: 0; }
+    .ew.charging .ew-scene .flow { opacity: 1; animation: flow .6s linear infinite; filter: drop-shadow(0 0 3px #2ecc71); }
+    .ew-scene .car { fill: rgba(127,127,127,.28); stroke: rgba(127,127,127,.6); stroke-width: 1.5; }
+    .ew-scene .glass { fill: rgba(127,127,127,.18); }
+    .ew-scene .wheel { fill: rgba(40,40,40,.85); stroke: rgba(127,127,127,.7); stroke-width: 2; }
+    .ew-scene .batt { fill: #2ecc71; opacity: 0; }
+    .ew.charging .ew-scene .batt { opacity: 1; animation: fill 2.4s ease-in-out infinite; }
+    .ew.empty .ew-scene .car-g, .ew.empty .ew-scene .cable-g { opacity: .18; }
+
+    /* Kennzahlen */
+    .ew-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .ew-stat { background: rgba(127,127,127,.12); border-radius: 10px; padding: 7px 9px; min-width: 0; }
+    .ew-l { font-size: 11px; opacity: .6; white-space: nowrap; }
+    .ew-v { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ew-s { font-size: 11px; opacity: .6; white-space: nowrap; }
+
+    .ew-sched { font-size: 12px; padding: 6px 10px; border-radius: 8px; background: rgba(52,152,219,.14); color: #5dade2; }
+    .ew-sched:empty { display: none; }
+
+    /* Bedienung */
+    .ew-ctrl { display: flex; gap: 8px; align-items: center; }
+    .ew-btn { border: 0; border-radius: 10px; padding: 9px 12px; font-weight: 700; font-size: 13px; cursor: pointer;
+              background: rgba(127,127,127,.2); color: inherit; transition: transform .1s, filter .2s; }
+    .ew-btn:active { transform: scale(.96); }
+    .ew-btn:disabled { opacity: .35; cursor: default; }
+    .ew-main { flex: 1; color: #fff; }
+    .ew-start { background: linear-gradient(135deg, #2ecc71, #1fa85a); box-shadow: 0 4px 12px rgba(46,204,113,.3); }
+    .ew-stop { background: linear-gradient(135deg, #f39c12, #e67e22); box-shadow: 0 4px 12px rgba(230,126,34,.3); }
+    .ew-limit { font-weight: 800; min-width: 44px; text-align: center; font-size: 15px; }
+    .ew-limit small { font-weight: 500; opacity: .6; font-size: 11px; }
+    .ew-foot { font-size: 10px; opacity: .4; text-align: right; margin-top: -4px; }
+
+    @keyframes pulse { 50% { opacity: .35; } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes flow { to { stroke-dashoffset: -11; } }
+    @keyframes fill { 0% { transform: scaleX(.25); } 70%, 100% { transform: scaleX(1); } }
+
+    /* Kleinere Kacheln: Schritt für Schritt reduzieren */
+    @media (max-width: 330px) { .ew-scene, .ew-stat:nth-child(3) { display: none; } .ew-stats { grid-template-columns: 1fr 1fr; } }
+    @media (max-height: 330px) { .ew-foot, .ew-sched { display: none; } }
+    @media (max-height: 260px) { .ew-stats { display: none; } }
+    @media (max-height: 170px) { .ew-ctrl, .ew-scene { display: none; } }
+</style>
+
+<div class="ew" id="root">
+    <div class="ew-top">
+        <span class="ew-pill"><i></i><span id="status">-</span></span>
+        <span class="ew-name" id="name"></span>
+    </div>
+
+    <div class="ew-hero">
+        <div class="ew-ring">
+            <svg viewBox="0 0 120 120">
+                <defs>
+                    <linearGradient id="grad" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0" stop-color="#00b7d8"/>
+                        <stop offset="1" stop-color="#2ecc71"/>
+                    </linearGradient>
+                </defs>
+                <!-- 270°-Bogen: Umfang 2πr = 314,16 -> 3/4 = 235,6 -->
+                <circle class="track" cx="60" cy="60" r="50" fill="none" stroke-width="9" stroke-linecap="round" stroke-dasharray="235.6 314.2"/>
+                <circle class="arc" id="arc" cx="60" cy="60" r="50" fill="none" stroke-width="9" stroke-linecap="round"
+                        stroke-dasharray="235.6 314.2" stroke-dashoffset="235.6"/>
+                <circle class="spin" cx="60" cy="60" r="58" fill="none" stroke-width="1.5" stroke-dasharray="4 16"/>
+            </svg>
+            <div class="ew-center">
+                <div class="ew-kw" id="power">-</div>
+                <div class="ew-unit">kW</div>
+                <div class="ew-sub" id="powersub"></div>
+            </div>
+        </div>
+
+        <svg class="ew-scene" viewBox="0 0 145 100" aria-hidden="true">
+            <!-- Wallbox -->
+            <rect class="box" x="6" y="14" width="30" height="46" rx="9"/>
+            <rect class="led" x="19" y="22" width="4" height="22" rx="2"/>
+            <!-- Kabel -->
+            <g class="cable-g">
+                <path class="cable" id="cablePath" d="M21 60 C 21 92, 70 94, 96 70"/>
+                <path class="flow" d="M21 60 C 21 92, 70 94, 96 70"/>
+            </g>
+            <!-- Auto -->
+            <g class="car-g">
+                <path class="car" d="M60 70 L64 58 Q67 49 76 48 L104 47 Q113 47 119 55 L126 62 Q139 64 140 72 L140 78 Q140 81 137 81 L63 81 Q60 81 60 78 Z"/>
+                <path class="glass" d="M70 57 Q72 52 78 51.5 L90 51 L90 59 L69 59 Z"/>
+                <path class="glass" d="M94 51 L104 50.5 Q110 50.5 114 55 L117 59 L94 59 Z"/>
+                <circle class="wheel" cx="78" cy="81" r="8"/>
+                <circle class="wheel" cx="123" cy="81" r="8"/>
+                <!-- Akku-Anzeige -->
+                <rect x="88" y="64" width="26" height="9" rx="2" fill="none" stroke="rgba(127,127,127,.6)" stroke-width="1.2"/>
+                <rect class="batt" x="90" y="66" width="22" height="5" rx="1" style="transform-origin: 90px 68px"/>
+            </g>
+        </svg>
+    </div>
+
+    <div class="ew-sched" id="schedule"></div>
+
+    <div class="ew-stats">
+        <div class="ew-stat"><div class="ew-l">⚡ Ladung</div><div class="ew-v"><span id="sessionE">-</span> kWh</div><div class="ew-s"><span id="sessionC">-</span> €</div></div>
+        <div class="ew-stat"><div class="ew-l">📅 Monat</div><div class="ew-v"><span id="monthE">-</span> kWh</div><div class="ew-s"><span id="monthC">-</span> €</div></div>
+        <div class="ew-stat"><div class="ew-l">🔌 Anschluss</div><div class="ew-v" id="phases">-</div><div class="ew-s" id="current">-</div></div>
+    </div>
+
+    <div class="ew-ctrl">
+        <button class="ew-btn ew-main" id="toggle" onclick="toggleCharging()">-</button>
+        <button class="ew-btn" id="minus" onclick="changeLimit(-1)">−</button>
+        <span class="ew-limit"><span id="limit">-</span><small> A</small></span>
+        <button class="ew-btn" id="plus" onclick="changeLimit(1)">+</button>
+    </div>
+
+    <div class="ew-foot">Stand <span id="updated">-</span></div>
+</div>
+
+<script>
+    let state = null;
+
+    function handleMessage(data) {
+        state = JSON.parse(data);
+
+        const $ = (id) => document.getElementById(id);
+        const set = (id, value) => { $(id).textContent = value; };
+
+        const root = $('root');
+        root.style.setProperty('--c', state.color);
+        root.classList.toggle('charging', state.charging);
+        root.classList.toggle('empty', !state.connected);
+
+        set('status', state.status);
+        set('name', state.name);
+        set('power', state.power);
+        set('powersub', 'von ' + state.maxKW + ' kW');
+        set('sessionE', state.sessionE);
+        set('sessionC', state.sessionC);
+        set('monthE', state.monthE);
+        set('monthC', state.monthC);
+        set('phases', state.phases > 0 ? state.phases + '-phasig' : (state.connected ? 'bereit' : '—'));
+        set('current', state.current + ' A');
+        set('limit', state.limit > 0 ? state.limit : '-');
+        set('schedule', state.schedule ? '🕒 ' + state.schedule : '');
+        set('updated', state.updated + (state.ok ? '' : ' · keine Verbindung'));
+
+        // Bogen: 235,6 = leer, 0 = voll
+        $('arc').setAttribute('stroke-dashoffset', (235.6 * (1 - state.percent / 100)).toFixed(1));
+
+        const toggle = $('toggle');
+        toggle.textContent = state.charging ? '⏸ Pausieren' : '▶ Laden starten';
+        toggle.className = 'ew-btn ew-main ' + (state.charging ? 'ew-stop' : 'ew-start');
+        toggle.disabled = !state.connected;
+
+        $('minus').disabled = state.limit <= 6;
+        $('plus').disabled = state.limit >= state.limitMax;
+    }
+
+    function toggleCharging() {
+        if (!state) return;
+        document.getElementById('toggle').disabled = true;
+        requestAction('ChargingActive', !state.charging);
+    }
+
+    // Mehrere Klicks sammeln und erst nach kurzer Pause senden
+    let limitTimer = null;
+
+    function changeLimit(step) {
+        if (!state || state.limit <= 0) return;
+        const value = Math.max(6, Math.min(state.limitMax, state.limit + step));
+        state.limit = value;
+        document.getElementById('limit').textContent = value;
+        document.getElementById('minus').disabled = value <= 6;
+        document.getElementById('plus').disabled = value >= state.limitMax;
+
+        clearTimeout(limitTimer);
+        limitTimer = setTimeout(() => requestAction('ChargeLimit', value), 1000);
+    }
+</script>

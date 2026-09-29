@@ -42,7 +42,8 @@ trait EaseeDashboard
 <div class="ew">
   <div class="ew-head">
     <div><div class="ew-title">⚡ ' . $e($chargerName !== '' ? $chargerName : 'Easee Wallbox') . '</div>
-         <div class="ew-sub">' . $e($chargerId) . ' · Firmware ' . $e($this->GetValue('Firmware')) . '</div></div>
+         <div class="ew-sub">' . $e($chargerId) . ' · Firmware ' . $e($this->GetValue('Firmware'))
+            . ' · WLAN <span style="color:' . $wifiColor . '">' . $rssi . ' dBm (' . $e($wifiText) . ')</span></div></div>
     <div class="ew-time">Letztes Update<br><b>' . $e(self::FormatTime((int) $this->GetValue('LastUpdate'))) . '</b></div>
   </div>
 
@@ -80,11 +81,14 @@ trait EaseeDashboard
             . $kpi('Session Kosten', $n($this->GetValue('SessionCost')), '€')
             . $kpi('Gesamtenergie', $n($this->GetValue('LifetimeEnergy'), 0), 'kWh')
             . $kpi('Gesamtkosten', $n($this->GetValue('LifetimeCost')), '€')
+            . $kpi('Dieser Monat', $n($this->GetValue('EnergyMonth'), 1) . ' kWh', $n($this->GetValue('CostMonth')) . ' €')
+            . $kpi('Dieses Jahr', $n($this->GetValue('EnergyYear'), 0) . ' kWh', $n($this->GetValue('CostYear')) . ' €')
+            . $kpi('Ladestrom-Grenze', (string) (int) $this->GetValue('ChargeLimit'), 'A')
             . $kpi('Strompreis', $n($this->GetValue('EnergyPrice'), 4), '€/kWh')
-            . '<div class="ew-kpi"><div class="ew-l">WLAN</div><div class="ew-v" style="color:' . $wifiColor . '">'
-            . $rssi . ' <small>dBm · ' . $e($wifiText) . '</small></div></div>
-  </div>'
+            . '</div>'
+            . $this->BuildScheduleLine()
             . $this->BuildPowerChart()
+            . $this->BuildMonthChart()
             . $this->BuildHistoryTable();
 
         if ($lastError !== '') {
@@ -131,6 +135,51 @@ trait EaseeDashboard
             . '<line x1="' . $p . '" y1="' . ($h - $p) . '" x2="' . ($w - $p) . '" y2="' . ($h - $p) . '" class="ew-axis"/>'
             . '<polyline points="' . implode(' ', $points) . '" class="ew-line"/></svg>'
             . '<div class="ew-axislabels"><span>-24 h</span><span>-12 h</span><span>jetzt</span></div></div>';
+    }
+
+    private function BuildScheduleLine(): string
+    {
+        if (!$this->ScheduleEnabled()) {
+            return '';
+        }
+
+        $mode = GetValueFormatted($this->GetIDForIdent('ScheduleMode'));
+        $info = (string) $this->GetValue('ScheduleInfo');
+
+        return '<div class="ew-box ew-sched"><span>🕒 Zeitsteuerung: <b>' . htmlspecialchars($mode) . '</b></span>'
+            . '<span>' . htmlspecialchars($info) . '</span></div>';
+    }
+
+    private function BuildMonthChart(): string
+    {
+        $stats = $this->ReadStats();
+        if (count($stats) === 0) {
+            return '';
+        }
+
+        // Letzte 12 Monate, fehlende Monate als 0
+        $months = [];
+        for ($i = 11; $i >= 0; $i--) {
+            $key = date('Y-m', strtotime(date('Y-m-01') . " -$i month"));
+            $months[$key] = $stats[$key] ?? ['e' => 0, 'c' => 0];
+        }
+
+        $max = max(1.0, max(array_map(fn ($m) => (float) $m['e'], $months)));
+        $names = ['01' => 'Jan', '02' => 'Feb', '03' => 'Mär', '04' => 'Apr', '05' => 'Mai', '06' => 'Jun',
+                  '07' => 'Jul', '08' => 'Aug', '09' => 'Sep', '10' => 'Okt', '11' => 'Nov', '12' => 'Dez'];
+
+        $bars = '';
+        foreach ($months as $key => $m) {
+            $h = round((float) $m['e'] / $max * 100, 1);
+            $title = number_format((float) $m['e'], 1, ',', '.') . ' kWh · ' . number_format((float) $m['c'], 2, ',', '.') . ' €';
+            $bars .= '<div class="ew-mcol" title="' . $title . '">'
+                . '<div class="ew-mval">' . ((float) $m['e'] > 0 ? round((float) $m['e']) : '') . '</div>'
+                . '<div class="ew-mbar"><div style="height:' . $h . '%"></div></div>'
+                . '<div class="ew-mlab">' . $names[substr($key, 5, 2)] . '</div></div>';
+        }
+
+        return '<div class="ew-box"><div class="ew-boxhead"><span>Energie pro Monat (kWh)</span></div>'
+            . '<div class="ew-months">' . $bars . '</div></div>';
     }
 
     private function BuildHistoryTable(): string
@@ -199,7 +248,7 @@ trait EaseeDashboard
         return '
 .ew{font-family:Arial,Helvetica,sans-serif;color:#fff;background:radial-gradient(circle at top left,#223946,#12161b 60%);padding:14px;border-radius:16px}
 .ew small{font-size:12px;font-weight:500;color:#cfd8dc}
-.ew-head{display:flex;justify-content:space-between;gap:12px;background:linear-gradient(135deg,#00b7d8,#008ba8);border-radius:14px;padding:14px 18px;margin-bottom:12px}
+.ew-head{color:#fff;display:flex;justify-content:space-between;gap:12px;background:linear-gradient(135deg,#00b7d8,#008ba8);border-radius:14px;padding:14px 18px;margin-bottom:12px}
 .ew-title{font-size:24px;font-weight:800}
 .ew-sub{font-size:12px;opacity:.9;margin-top:4px}
 .ew-time{text-align:right;font-size:12px;line-height:1.5}
@@ -218,7 +267,7 @@ trait EaseeDashboard
 .ew-phases{display:flex;gap:10px;margin-top:12px}
 .ew-phases div{flex:1;background:rgba(255,255,255,.08);border-radius:10px;padding:8px;text-align:center;font-weight:800}
 .ew-phases span{display:block;font-size:11px;color:#cfd8dc;font-weight:500}
-.ew-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+.ew-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
 .ew-kpi,.ew-box{background:#20252b;border:1px solid #30363d;border-radius:14px;padding:12px}
 .ew-v{font-size:22px;font-weight:800}
 .ew-box{margin-top:12px}
@@ -228,9 +277,16 @@ trait EaseeDashboard
 .ew-axis{stroke:#4b5661;stroke-width:1}
 .ew-line{fill:none;stroke:#2ecc71;stroke-width:3;stroke-linejoin:round}
 .ew-axislabels{display:flex;justify-content:space-between;font-size:11px;color:#8b98a5}
-.ew-table{width:100%;border-collapse:collapse;font-size:13px}
+.ew-table{width:100%;border-collapse:collapse;font-size:13px;color:#e5edf4}
 .ew-table th{text-align:left;color:#cfd8dc;padding:6px 8px;border-bottom:1px solid #30363d}
-.ew-table td{padding:6px 8px;border-bottom:1px solid #262b31}
+.ew-table td{padding:6px 8px;border-bottom:1px solid #262b31;color:#e5edf4}
+.ew-sched{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.ew-months{display:flex;gap:6px;align-items:flex-end;height:150px}
+.ew-mcol{flex:1;display:flex;flex-direction:column;align-items:center;height:100%}
+.ew-mval{font-size:10px;color:#cfd8dc;height:14px}
+.ew-mbar{flex:1;width:100%;display:flex;align-items:flex-end}
+.ew-mbar div{width:100%;background:linear-gradient(180deg,#00b7d8,#008ba8);border-radius:4px 4px 0 0;min-height:2px}
+.ew-mlab{font-size:11px;color:#8b98a5;margin-top:4px}
 .ew-error{margin-top:12px;padding:10px;background:#471c1c;border:1px solid #e74c3c;border-radius:10px;color:#ffd6d6}
 @media (max-width:700px){.ew-grid{grid-template-columns:repeat(2,1fr)}.ew-head{flex-direction:column}.ew-time{text-align:left}.ew-big{font-size:36px}}
 ';
