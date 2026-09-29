@@ -116,12 +116,13 @@ Die Statistik beginnt mit der Installation des Moduls; Werte davor sind nicht en
 
 ## Kachel-Visualisierung
 
-Die Instanz bringt eine **eigene Kachel** mit: Ring-Anzeige der Ladeleistung, eine Illustration von Wallbox und Fahrzeug
-(beim Laden fließt animiert Strom durchs Kabel), aktuelle Ladung, Monatswerte und Anschluss,
-dazu Buttons für Start/Pause und für die Stromgrenze (− / +). Ist die Zeitsteuerung aktiv, zeigt die Kachel
-auch deren aktuellen Plan. Einfach die Instanz in der Kachel-Visualisierung hinzufügen.
-Bei kleiner Kachelgröße werden Details automatisch ausgeblendet, bei großen Kacheln wächst alles mit.
-Ist der Ladestrom nicht begrenzt, zeigt die Kachel „max“ statt des Hardware-Maximalwerts der Wallbox.
+Die Instanz bringt eine **eigene Kachel** mit: links ein Leistungsring in der Farbe des aktuellen Status,
+rechts eine Grafik von Wallbox und Fahrzeug (beim Laden fließt animiert Strom durchs Kabel, der Akku füllt sich)
+und darunter eine Werteliste (aktuelle Ladung, dieser Monat, Anschluss, Stromgrenze mit − / +, Zeitsteuerung)
+und darunter der Knopf zum Starten bzw. Pausieren. Einfach die Instanz in der Kachel-Visualisierung hinzufügen.
+
+Die Kachel passt sich der Größe an: breit nebeneinander, schmal untereinander (dann ohne Fahrzeug-Grafik); bei kleinen Kacheln bleiben
+Ring, Stromgrenze und Start/Pause. Ist der Ladestrom nicht begrenzt, steht dort „max“.
 
 ## Ladeende-Erkennung
 
@@ -183,6 +184,8 @@ Armin Frohwerk
 
 ## Versionen
 
+- **1.6** – Fahrzeug-Grafik zurück in der Kachel (über der Werteliste, Farbe folgt dem Status)
+- **1.5** – Kachel neu gestaltet: ruhiges Layout mit Leistungsring und Werteliste, Linien-Icons, sauberes Verhalten bei allen Größen
 - **1.4** – Kachel: kein Überlappen mit dem Symcon-Kacheltitel, passende Schrift, wächst mit großen Kacheln mit, „max“ bei unbegrenztem Ladestrom
 - **1.3** – Neu gestaltete Kachel mit Leistungsring und animierter Wallbox-/Fahrzeug-Grafik
 - **1.2** – Ladestrom-Grenze, Zeitsteuerung (Zeitfenster / Fertig bis), Monats- und Jahresstatistik,
