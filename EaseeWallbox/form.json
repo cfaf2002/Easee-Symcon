@@ -1,0 +1,148 @@
+{
+    "elements": [
+        {
+            "type": "CheckBox",
+            "name": "Active",
+            "caption": "Instanz aktiv"
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Easee-Konto",
+            "expanded": true,
+            "items": [
+                {
+                    "type": "ValidationTextBox",
+                    "name": "Username",
+                    "caption": "Benutzername (E-Mail oder Telefonnummer)",
+                    "width": "400px"
+                },
+                {
+                    "type": "PasswordTextBox",
+                    "name": "Password",
+                    "caption": "Passwort",
+                    "width": "400px"
+                },
+                {
+                    "type": "ValidationTextBox",
+                    "name": "ChargerID",
+                    "caption": "Charger-ID (leer = erster Charger im Konto)",
+                    "width": "400px"
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "UpdateInterval",
+                    "caption": "Abrufintervall",
+                    "suffix": "Minuten",
+                    "minimum": 1,
+                    "maximum": 60
+                },
+                {
+                    "type": "Select",
+                    "name": "MaxPowerKW",
+                    "caption": "Maximale Ladeleistung",
+                    "options": [
+                        { "caption": "11 kW", "value": 11 },
+                        { "caption": "22 kW", "value": 22 },
+                        { "caption": "7,4 kW", "value": 7 }
+                    ]
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Benachrichtigungen",
+            "items": [
+                {
+                    "type": "SelectInstance",
+                    "name": "NotifyInstance",
+                    "caption": "Visualisierung für Push (Kachel-Visualisierung oder WebFront)",
+                    "width": "400px"
+                },
+                {
+                    "type": "CheckBox",
+                    "name": "NotifyStart",
+                    "caption": "Bei Ladebeginn"
+                },
+                {
+                    "type": "CheckBox",
+                    "name": "NotifyEnd",
+                    "caption": "Bei Ladeende (mit kWh und Kosten)"
+                },
+                {
+                    "type": "CheckBox",
+                    "name": "NotifyError",
+                    "caption": "Bei Fehlern der Wallbox oder der API"
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Dashboard & Archiv",
+            "items": [
+                {
+                    "type": "CheckBox",
+                    "name": "Dashboard",
+                    "caption": "HTML-Dashboard-Variable anlegen"
+                },
+                {
+                    "type": "CheckBox",
+                    "name": "LogPower",
+                    "caption": "Ladeleistung automatisch archivieren (für das 24-h-Diagramm)"
+                }
+            ]
+        }
+    ],
+    "actions": [
+        {
+            "type": "RowLayout",
+            "items": [
+                {
+                    "type": "Button",
+                    "caption": "Jetzt aktualisieren",
+                    "onClick": "echo EASEE_Update($id) ? 'Aktualisiert.' : 'Fehler - siehe Variable \"Letzter Fehler\".';"
+                },
+                {
+                    "type": "Button",
+                    "caption": "Verbindung testen / Charger anzeigen",
+                    "onClick": "echo EASEE_ListChargers($id);"
+                }
+            ]
+        },
+        {
+            "type": "RowLayout",
+            "items": [
+                {
+                    "type": "Button",
+                    "caption": "Laden starten",
+                    "onClick": "EASEE_StartCharging($id);"
+                },
+                {
+                    "type": "Button",
+                    "caption": "Laden pausieren",
+                    "onClick": "EASEE_StopCharging($id);"
+                },
+                {
+                    "type": "PopupButton",
+                    "caption": "Ladehistorie löschen",
+                    "popup": {
+                        "caption": "Ladehistorie wirklich löschen?",
+                        "items": [
+                            {
+                                "type": "Button",
+                                "caption": "Ja, löschen",
+                                "onClick": "EASEE_ResetHistory($id); echo 'Ladehistorie gelöscht.';"
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    ],
+    "status": [
+        { "code": 102, "icon": "active", "caption": "Verbunden" },
+        { "code": 104, "icon": "inactive", "caption": "Instanz ist deaktiviert" },
+        { "code": 201, "icon": "error", "caption": "Bitte Benutzername und Passwort eintragen" },
+        { "code": 202, "icon": "error", "caption": "Anmeldung fehlgeschlagen - Zugangsdaten prüfen" },
+        { "code": 203, "icon": "error", "caption": "Easee API nicht erreichbar oder Fehler (siehe \"Letzter Fehler\")" }
+    ]
+}
