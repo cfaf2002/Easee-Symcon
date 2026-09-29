@@ -118,4 +118,5 @@ von Easee nicht mehr (sie waren seit der Umstellung ohnehin immer 0). Ebenso ent
 
 ## Versionen
 
+- **1.1** – Fehler beim Anlegen der Instanz behoben (Archiv-Logging)
 - **1.0** – Erste Version als Modul (Ablösung der Skriptsammlung)

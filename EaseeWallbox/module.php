@@ -685,7 +685,7 @@ class EaseeWallbox extends IPSModule
 
         if (!AC_GetLoggingStatus($archives[0], $varId)) {
             AC_SetLoggingStatus($archives[0], $varId, true);
-            AC_ApplyChanges($archives[0]);
+            IPS_ApplyChanges($archives[0]);
         }
     }
 
