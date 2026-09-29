@@ -42,6 +42,8 @@ trait EaseeTile
             'maxKW'     => $maxKW,
             'sessionE'  => self::Num((float) $this->GetValue('SessionEnergy')),
             'sessionC'  => self::Num((float) $this->GetValue('SessionCost')),
+            'todayE'    => self::Num((float) $this->GetValue('EnergyToday')),
+            'todayC'    => self::Num((float) $this->GetValue('CostToday')),
             'monthE'    => self::Num((float) $this->GetValue('EnergyMonth'), 1),
             'monthC'    => self::Num((float) $this->GetValue('CostMonth')),
             'charging'  => (bool) $this->GetValue('ChargingActive'),

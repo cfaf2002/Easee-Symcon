@@ -72,6 +72,8 @@ class EaseeWallbox extends IPSModule
         $this->RegisterPropertyBoolean('NotifyError', true);
         $this->RegisterPropertyBoolean('Dashboard', true);
         $this->RegisterPropertyBoolean('LogPower', true);
+        $this->RegisterPropertyBoolean('LogEnergy', true);
+        $this->RegisterPropertyFloat('EnergyPrice', 0.30);
         $this->RegisterPropertyBoolean('EnableSchedule', false);
         $this->RegisterPropertyInteger('ScheduleBuffer', 30);
 
@@ -88,6 +90,8 @@ class EaseeWallbox extends IPSModule
         $this->RegisterAttributeString('History', '[]');
         $this->RegisterAttributeFloat('LastLifetime', 0);
         $this->RegisterAttributeString('Stats', '{}');
+        $this->RegisterAttributeString('DayKey', '');
+        $this->RegisterAttributeInteger('PriceMigrated', 0);
         $this->RegisterAttributeInteger('LastPhases', 3);
         $this->RegisterScheduleAttributes();
 
@@ -128,8 +132,25 @@ class EaseeWallbox extends IPSModule
             return;
         }
 
+        // Einmalig: bisher über die Variable gepflegten Strompreis ins Formular übernehmen
+        if ($this->ReadAttributeInteger('PriceMigrated') === 0) {
+            $this->WriteAttributeInteger('PriceMigrated', 1);
+            $old = (float) $this->GetValue('EnergyPrice');
+            if ($old > 0 && abs($old - $this->ReadPropertyFloat('EnergyPrice')) > 0.00001) {
+                IPS_SetProperty($this->InstanceID, 'EnergyPrice', $old);
+                IPS_ApplyChanges($this->InstanceID);
+                return;
+            }
+        }
+        $this->ApplyEnergyPrice($this->ReadPropertyFloat('EnergyPrice'));
+
         if ($this->ReadPropertyBoolean('LogPower')) {
-            $this->EnableArchiveLogging('Power');
+            $this->EnableArchiveLogging('Power', 0);
+        }
+        if ($this->ReadPropertyBoolean('LogEnergy')) {
+            // Zähler-Aggregation: Symcon bildet daraus Werte pro Tag/Woche/Monat/Jahr
+            $this->EnableArchiveLogging('LifetimeEnergy', 1);
+            $this->EnableArchiveLogging('CostCounter', 1);
         }
 
         if (!$this->ReadPropertyBoolean('Active')) {
@@ -174,10 +195,6 @@ class EaseeWallbox extends IPSModule
 
             case 'CableLockPermanent':
                 $this->SetCableLockPermanent((bool) $Value);
-                break;
-
-            case 'EnergyPrice':
-                $this->SetEnergyPrice((float) $Value);
                 break;
 
             case 'QuickRefresh':
@@ -268,16 +285,14 @@ class EaseeWallbox extends IPSModule
         });
     }
 
-    /** Strompreis in €/kWh setzen, Kosten werden sofort neu berechnet. */
+    /**
+     * Strompreis in €/kWh setzen (entspricht dem Feld im Instanz-Formular).
+     * Gilt ab sofort; bereits erfasste Tages-/Monatskosten bleiben unverändert.
+     */
     public function SetEnergyPrice(float $Price): void
     {
-        $Price = max(0.0, $Price);
-
-        $this->SetValue('EnergyPrice', $Price);
-        $this->SetValue('SessionCost', round($this->GetValue('SessionEnergy') * $Price, 2));
-        $this->SetValue('LifetimeCost', round($this->GetValue('LifetimeEnergy') * $Price, 2));
-
-        $this->RefreshViews();
+        IPS_SetProperty($this->InstanceID, 'EnergyPrice', max(0.0, $Price));
+        IPS_ApplyChanges($this->InstanceID);
     }
 
     /** Listet alle Charger des Kontos auf (auch als Verbindungstest). */
@@ -491,8 +506,37 @@ class EaseeWallbox extends IPSModule
     // Statistik
     // =================================================================
 
+    /** Preis aus dem Formular in die Anzeige-Variable übernehmen und Kosten neu berechnen. */
+    private function ApplyEnergyPrice(float $price): void
+    {
+        $price = max(0.0, $price);
+        if (abs((float) $this->GetValue('EnergyPrice') - $price) < 0.00001) {
+            return;
+        }
+
+        $this->SetValue('EnergyPrice', $price);
+        $this->SetValue('SessionCost', round($this->GetValue('SessionEnergy') * $price, 2));
+        $this->SetValue('LifetimeCost', round($this->GetValue('LifetimeEnergy') * $price, 2));
+        $this->RefreshViews();
+    }
+
+    /** Um Mitternacht "heute" auf 0 setzen. */
+    private function RollDay(): void
+    {
+        $today = date('Y-m-d');
+        if ($this->ReadAttributeString('DayKey') === $today) {
+            return;
+        }
+
+        $this->WriteAttributeString('DayKey', $today);
+        $this->SetValue('EnergyToday', 0.0);
+        $this->SetValue('CostToday', 0.0);
+    }
+
     private function AccumulateStats(float $lifetimeEnergy, float $price): void
     {
+        $this->RollDay();
+
         $last = $this->ReadAttributeFloat('LastLifetime');
         $this->WriteAttributeFloat('LastLifetime', $lifetimeEnergy);
 
@@ -503,6 +547,11 @@ class EaseeWallbox extends IPSModule
             $this->UpdateStatVariables();
             return;
         }
+
+        // Tageswerte und laufender Kostenzähler (fürs Archiv)
+        $this->SetValue('EnergyToday', round((float) $this->GetValue('EnergyToday') + $delta, 3));
+        $this->SetValue('CostToday', round((float) $this->GetValue('CostToday') + $delta * $price, 4));
+        $this->SetValue('CostCounter', round((float) $this->GetValue('CostCounter') + $delta * $price, 4));
 
         $stats = $this->ReadStats();
         $month = date('Y-m');
@@ -854,7 +903,8 @@ class EaseeWallbox extends IPSModule
         }
     }
 
-    private function EnableArchiveLogging(string $ident): void
+    /** @param int $aggregation 0 = Standard, 1 = Zähler */
+    private function EnableArchiveLogging(string $ident, int $aggregation): void
     {
         $archives = IPS_GetInstanceListByModuleID(self::ARCHIVE_GUID);
         $varId = @$this->GetIDForIdent($ident);
@@ -862,9 +912,19 @@ class EaseeWallbox extends IPSModule
             return;
         }
 
-        if (!AC_GetLoggingStatus($archives[0], $varId)) {
-            AC_SetLoggingStatus($archives[0], $varId, true);
-            IPS_ApplyChanges($archives[0]);
+        $archive = $archives[0];
+        $changed = false;
+
+        if (!AC_GetLoggingStatus($archive, $varId)) {
+            AC_SetLoggingStatus($archive, $varId, true);
+            $changed = true;
+        }
+        if (AC_GetAggregationType($archive, $varId) !== $aggregation) {
+            AC_SetAggregationType($archive, $varId, $aggregation);
+            $changed = true;
+        }
+        if ($changed) {
+            IPS_ApplyChanges($archive);
         }
     }
 
@@ -939,10 +999,13 @@ class EaseeWallbox extends IPSModule
         $this->RegisterVariableFloat('LifetimeEnergy', 'Gesamtenergie', 'EaseeWB.kWh', 12);
         $this->RegisterVariableFloat('LifetimeCost', 'Gesamtkosten (geschätzt)', 'EaseeWB.EUR', 13);
         $this->RegisterVariableFloat('EnergyPrice', 'Strompreis', 'EaseeWB.Price', 14);
-        $this->RegisterVariableFloat('EnergyMonth', 'Energie dieser Monat', 'EaseeWB.kWh', 15);
-        $this->RegisterVariableFloat('CostMonth', 'Kosten dieser Monat', 'EaseeWB.EUR', 16);
-        $this->RegisterVariableFloat('EnergyYear', 'Energie dieses Jahr', 'EaseeWB.kWh', 17);
-        $this->RegisterVariableFloat('CostYear', 'Kosten dieses Jahr', 'EaseeWB.EUR', 18);
+        $this->RegisterVariableFloat('EnergyToday', 'Energie heute', 'EaseeWB.kWh', 15);
+        $this->RegisterVariableFloat('CostToday', 'Kosten heute', 'EaseeWB.EUR', 16);
+        $this->RegisterVariableFloat('EnergyMonth', 'Energie dieser Monat', 'EaseeWB.kWh', 17);
+        $this->RegisterVariableFloat('CostMonth', 'Kosten dieser Monat', 'EaseeWB.EUR', 18);
+        $this->RegisterVariableFloat('EnergyYear', 'Energie dieses Jahr', 'EaseeWB.kWh', 19);
+        $this->RegisterVariableFloat('CostYear', 'Kosten dieses Jahr', 'EaseeWB.EUR', 20);
+        $this->RegisterVariableFloat('CostCounter', 'Kosten gesamt (seit Installation)', 'EaseeWB.EUR', 21);
 
         $this->RegisterVariableBoolean('VehicleConnected', 'Fahrzeug verbunden', '~Switch', 20);
         $this->RegisterVariableBoolean('CableLocked', 'Kabel verriegelt', '~Switch', 21);
@@ -965,11 +1028,8 @@ class EaseeWallbox extends IPSModule
         $this->EnableAction('ChargingActive');
         $this->EnableAction('ChargeLimit');
         $this->EnableAction('CableLockPermanent');
-        $this->EnableAction('EnergyPrice');
-
-        if ((float) $this->GetValue('EnergyPrice') <= 0) {
-            $this->SetValue('EnergyPrice', 0.30);
-        }
+        // Strompreis wird im Instanz-Formular gepflegt
+        $this->DisableAction('EnergyPrice');
     }
 
     // =================================================================

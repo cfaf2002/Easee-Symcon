@@ -12,7 +12,7 @@ Ersetzt die bisherigen sechs Skripte (`Easee_API`, `Easee_TextHelper`, `Easee_Se
 - **Zeitsteuerung:** Laden nur im Zeitfenster oder „Fertig bis“ mit Ziel-Energie
 - **Kabel dauerhaft verriegeln** über einen Schalter
 - Session- und Gesamtenergie inkl. Kostenberechnung über einen einstellbaren Strompreis
-- **Monats- und Jahresstatistik** (kWh und €)
+- **Verbrauch und Kosten pro Tag, Monat und Jahr** – dauerhaft im Symcon-Archiv
 - Ladehistorie der letzten 30 Ladevorgänge (Dauer, kWh, Kosten)
 - **Eigene Kachel für die Kachel-Visualisierung** mit Start/Pause und Stromgrenze
 - Push-Benachrichtigungen bei Ladebeginn, Ladeende und Fehlern
@@ -47,8 +47,10 @@ Alle Variablen, Profile und Timer werden automatisch angelegt – ein Setup-Skri
 | Visualisierung für Push | Kachel-Visualisierung oder WebFront, an die Benachrichtigungen gehen |
 | Zeitsteuerung aktivieren | Legt die Variablen für die Zeitsteuerung an |
 | Sicherheitspuffer | So viel früher startet „Fertig bis“ als rechnerisch nötig (Standard 30 min) |
+| Strompreis | Arbeitspreis in €/kWh für alle Kostenberechnungen |
 | Dashboard-Variable | Legt die HTMLBox-Variable „Dashboard“ an |
 | Ladeleistung archivieren | Aktiviert automatisch das Logging von „Ladeleistung“ (für das Diagramm) |
+| Energie und Kosten als Zähler archivieren | Archiviert „Gesamtenergie“ und „Kosten gesamt“ als Zähler – daraus bildet Symcon Werte pro Tag, Woche, Monat und Jahr |
 
 ## Variablen
 
@@ -62,8 +64,10 @@ Alle Variablen, Profile und Timer werden automatisch angelegt – ein Setup-Skri
 | Phasen | Integer | Anzahl genutzter Phasen |
 | Session Energie / Kosten | Float | Energie seit dem Einstecken des Fahrzeugs |
 | Gesamtenergie / Gesamtkosten | Float | Zählerstand der Wallbox, Kosten mit aktuellem Preis geschätzt |
-| Strompreis | Float (€/kWh), schaltbar | Änderung berechnet die Kosten sofort neu |
+| Strompreis | Float (€/kWh) | Anzeige des im Formular eingetragenen Preises |
+| Energie heute / Kosten heute | Float | Seit Mitternacht geladen, springt um 0 Uhr auf 0 |
 | Energie/Kosten dieser Monat, dieses Jahr | Float | Statistik aus dem Zählerstand |
+| Kosten gesamt (seit Installation) | Float (€) | Laufender Kostenzähler, jede kWh mit dem damals gültigen Preis |
 | Fahrzeug verbunden | Boolean | |
 | Kabel verriegelt | Boolean | Aktueller Zustand |
 | Kabel dauerhaft verriegelt | Boolean, schaltbar | Dauerverriegelung ein/aus |
@@ -107,6 +111,29 @@ Gut zu wissen:
   Beginnt die Wallbox nach dem Einstecken sofort zu laden, wird sie also nach spätestens einem Abrufintervall pausiert.
   Wer die Zeitsteuerung nutzt, stellt das Abrufintervall am besten auf 1–2 Minuten.
 
+## Strompreis
+
+Der Strompreis wird im **Instanz-Formular** unter „Strompreis, Dashboard & Archiv“ eingetragen. Ein neuer Preis gilt ab dem
+Übernehmen: Tages-, Monats- und Jahreskosten sowie der Kostenzähler behalten für bereits geladene kWh den alten Preis.
+„Session Kosten“ und „Gesamtkosten (geschätzt)“ werden dagegen komplett mit dem neuen Preis neu berechnet.
+Beim Update von einer älteren Version wird der bisher in der Variable gepflegte Preis automatisch ins Formular übernommen.
+
+Per Skript: `EASEE_SetEnergyPrice(<InstanzID>, 0.32);`
+
+## Verbrauch pro Tag im Archiv
+
+Das Modul archiviert automatisch **„Gesamtenergie“** und **„Kosten gesamt (seit Installation)“** mit der Aggregation
+**Zähler**. Symcon berechnet daraus selbst, wie viel pro Stunde, Tag, Woche, Monat und Jahr geladen wurde und was es gekostet hat –
+dauerhaft, auch über Jahre. In der Visualisierung einfach die Variable öffnen und im Diagramm zwischen Tag, Woche,
+Monat und Jahr umschalten. Per Skript z. B. die Tageswerte der letzten 30 Tage:
+
+```php
+$archiv = IPS_GetInstanceListByModuleID('{43192F0B-135B-4CE7-A0A7-1475603F3060}')[0];
+$werte  = AC_GetAggregatedValues($archiv, <ID von Gesamtenergie>, 1 /* Tag */, strtotime('-30 days'), time(), 0);
+```
+
+Die Aufzeichnung beginnt mit der Aktivierung – die Easee-API liefert keine Tageswerte der Vergangenheit.
+
 ## Statistik
 
 Die Monats- und Jahreswerte werden aus dem **Zählerstand** der Wallbox berechnet und enthalten daher jede
@@ -141,7 +168,7 @@ EASEE_StartCharging(int $InstanzID): bool              // Laden fortsetzen
 EASEE_StopCharging(int $InstanzID): bool               // Laden pausieren
 EASEE_SetChargeLimit(int $InstanzID, int $Ampere): bool
 EASEE_SetCableLockPermanent(int $InstanzID, bool $An): bool
-EASEE_SetEnergyPrice(int $InstanzID, float $EuroProKWh)
+EASEE_SetEnergyPrice(int $InstanzID, float $EuroProKWh) // wie das Feld im Formular
 EASEE_ListChargers(int $InstanzID): string             // Verbindungstest
 EASEE_GetHistory(int $InstanzID): string               // Ladehistorie als JSON
 EASEE_ResetHistory(int $InstanzID)
@@ -159,7 +186,7 @@ EASEE_ResetStatistics(int $InstanzID)
    ```php
    EASEE_ImportHistory(<ID der neuen Instanz>, GetValueString(<ID der alten Variable "Ladehistorie (JSON)">));
    ```
-3. Strompreis in der neuen Variable „Strompreis“ eintragen.
+3. Strompreis im Instanz-Formular eintragen.
 4. Wenn alles läuft: das zyklische Ereignis unter `Easee_Update` und das unter `Easee_Dashboard` **deaktivieren**,
    danach die sechs Skripte und die alten Variablen löschen.
 
@@ -184,6 +211,7 @@ Armin Frohwerk
 
 ## Versionen
 
+- **1.7** – Energie und Kosten pro Tag (Variablen „heute“, Archiv als Zähler für Tag/Woche/Monat/Jahr), laufender Kostenzähler, Strompreis wird im Instanz-Formular gepflegt, Zeile „Heute“ in Kachel und Dashboard
 - **1.6** – Fahrzeug-Grafik zurück in der Kachel (über der Werteliste, Farbe folgt dem Status)
 - **1.5** – Kachel neu gestaltet: ruhiges Layout mit Leistungsring und Werteliste, Linien-Icons, sauberes Verhalten bei allen Größen
 - **1.4** – Kachel: kein Überlappen mit dem Symcon-Kacheltitel, passende Schrift, wächst mit großen Kacheln mit, „max“ bei unbegrenztem Ladestrom

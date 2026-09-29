@@ -109,8 +109,21 @@
         },
         {
             "type": "ExpansionPanel",
-            "caption": "Dashboard & Archiv",
+            "caption": "Strompreis, Dashboard & Archiv",
             "items": [
+                {
+                    "type": "NumberSpinner",
+                    "name": "EnergyPrice",
+                    "caption": "Strompreis",
+                    "suffix": "€/kWh",
+                    "digits": 4,
+                    "minimum": 0,
+                    "maximum": 2
+                },
+                {
+                    "type": "Label",
+                    "caption": "Ein neuer Preis gilt ab dem Übernehmen. Bereits erfasste Tages-, Monats- und Jahreskosten bleiben unverändert."
+                },
                 {
                     "type": "CheckBox",
                     "name": "Dashboard",
@@ -120,8 +133,14 @@
                     "type": "CheckBox",
                     "name": "LogPower",
                     "caption": "Ladeleistung automatisch archivieren (für das 24-h-Diagramm)"
+                },
+                {
+                    "type": "CheckBox",
+                    "name": "LogEnergy",
+                    "caption": "Energie und Kosten als Zähler archivieren (Verbrauch pro Tag/Woche/Monat/Jahr)"
                 }
-            ]
+            ],
+            "expanded": true
         }
     ],
     "actions": [
