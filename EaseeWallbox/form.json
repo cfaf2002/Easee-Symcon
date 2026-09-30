@@ -109,6 +109,36 @@
         },
         {
             "type": "ExpansionPanel",
+            "caption": "Akkustand Fahrzeug",
+            "items": [
+                {
+                    "type": "CheckBox",
+                    "name": "EnableSoc",
+                    "caption": "Akkustand des Fahrzeugs anzeigen"
+                },
+                {
+                    "type": "SelectVariable",
+                    "name": "SocVariable",
+                    "caption": "Variable mit dem Akkustand (0–100 %)",
+                    "width": "400px"
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "BatteryCapacity",
+                    "caption": "Nutzbare Akkugröße",
+                    "suffix": "kWh",
+                    "digits": 1,
+                    "minimum": 1,
+                    "maximum": 200
+                },
+                {
+                    "type": "Label",
+                    "caption": "Die Wallbox kennt den Akkustand nicht – er muss aus einer anderen Quelle kommen (z. B. Hersteller-Cloud des Autos). Die Akkugröße wird nur für „Fertig bis“ mit Ziel in Prozent benötigt."
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
             "caption": "Strompreis, Dashboard & Archiv",
             "items": [
                 {
@@ -171,6 +201,46 @@
                 {
                     "type": "Label",
                     "caption": "Tipp: Querformat, am besten unter 500 KB (z. B. 1600 × 1000 Pixel als JPG). Zum Entfernen das Bild im Feld löschen und übernehmen."
+                },
+                {
+                    "type": "Label",
+                    "caption": "Fahrzeugbild (statt des eingebauten Auto-Symbols)"
+                },
+                {
+                    "type": "SelectFile",
+                    "name": "CarImage",
+                    "caption": "Bild des Fahrzeugs",
+                    "extensions": ".png,.webp,.jpg,.jpeg"
+                },
+                {
+                    "type": "CheckBox",
+                    "name": "CarMirror",
+                    "caption": "Bild spiegeln (Fahrzeug soll mit dem Ladeanschluss zur Wallbox zeigen)"
+                },
+                {
+                    "type": "RowLayout",
+                    "items": [
+                        {
+                            "type": "NumberSpinner",
+                            "name": "CarPortX",
+                            "caption": "Ladeanschluss von links",
+                            "suffix": "%",
+                            "minimum": 0,
+                            "maximum": 100
+                        },
+                        {
+                            "type": "NumberSpinner",
+                            "name": "CarPortY",
+                            "caption": "Ladeanschluss von oben",
+                            "suffix": "%",
+                            "minimum": 0,
+                            "maximum": 100
+                        }
+                    ]
+                },
+                {
+                    "type": "Label",
+                    "caption": "Am besten ein freigestelltes PNG in Seitenansicht (transparenter Hintergrund, unter 300 KB). Die Position des Ladeanschlusses bezieht sich auf das angezeigte (ggf. gespiegelte) Bild – nach dem Übernehmen sieht man das Ergebnis sofort in der Kachel."
                 }
             ]
         }

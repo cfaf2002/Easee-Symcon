@@ -31,6 +31,8 @@ trait EaseeSchedule
         $this->MaintainVariable('ScheduleEnd', 'Zeitfenster Ende', VARIABLETYPE_INTEGER, '~UnixTimestampTime', 62, $keep);
         $this->MaintainVariable('ReadyBy', 'Fertig bis', VARIABLETYPE_INTEGER, '~UnixTimestampTime', 63, $keep);
         $this->MaintainVariable('TargetEnergy', 'Ziel-Energie', VARIABLETYPE_FLOAT, 'EaseeWB.Target', 64, $keep);
+        $this->MaintainVariable('TargetSoc', 'Ziel-Akkustand', VARIABLETYPE_INTEGER, 'EaseeWB.Percent', 64,
+            $keep && $this->ReadPropertyBoolean('EnableSoc'));
         $this->MaintainVariable('ScheduleInfo', 'Zeitsteuerung Info', VARIABLETYPE_STRING, '', 65, $keep);
 
         if (!$keep) {
@@ -39,6 +41,12 @@ trait EaseeSchedule
 
         foreach (['ScheduleMode', 'ScheduleStart', 'ScheduleEnd', 'ReadyBy', 'TargetEnergy'] as $ident) {
             $this->EnableAction($ident);
+        }
+        if (@$this->GetIDForIdent('TargetSoc') !== false) {
+            $this->EnableAction('TargetSoc');
+            if ((int) $this->GetValue('TargetSoc') === 0) {
+                $this->SetValue('TargetSoc', 100);
+            }
         }
 
         // Sinnvolle Startwerte beim ersten Anlegen
@@ -70,7 +78,7 @@ trait EaseeSchedule
 
     private function HandleScheduleAction(string $ident, $value): bool
     {
-        if (!in_array($ident, ['ScheduleMode', 'ScheduleStart', 'ScheduleEnd', 'ReadyBy', 'TargetEnergy'], true)) {
+        if (!in_array($ident, ['ScheduleMode', 'ScheduleStart', 'ScheduleEnd', 'ReadyBy', 'TargetEnergy', 'TargetSoc'], true)) {
             return false;
         }
 
@@ -84,7 +92,7 @@ trait EaseeSchedule
             $this->WriteAttributeInteger('ManualOverride', 0);
             $this->UpdateScheduleTimer();
         }
-        if (in_array($ident, ['ScheduleMode', 'ReadyBy', 'TargetEnergy'], true)) {
+        if (in_array($ident, ['ScheduleMode', 'ReadyBy', 'TargetEnergy', 'TargetSoc'], true)) {
             $this->WriteAttributeInteger('Deadline', 0);
         }
 
@@ -200,13 +208,25 @@ trait EaseeSchedule
             $this->WriteAttributeFloat('DeadlineBaseEnergy', 0);
         }
 
-        $target = (float) $this->GetValue('TargetEnergy');
-        $charged = $session - $base;
-        $need = $target - $charged;
         $deadlineText = date('H:i', $deadline);
+        $soc = $this->CurrentSoc();
 
-        if ($need <= 0.05) {
-            return [false, sprintf('Ziel erreicht (%s kWh)', self::Num($charged, 1))];
+        if ($soc !== null && @$this->GetIDForIdent('TargetSoc') !== false) {
+            // Ziel in Prozent: benötigte Energie aus Akkugröße, ca. 10 % Ladeverluste
+            $targetSoc = (int) $this->GetValue('TargetSoc');
+            if ($soc >= $targetSoc) {
+                return [false, sprintf('Ziel erreicht (%d %%)', $soc)];
+            }
+            $need = ($targetSoc - $soc) / 100 * $this->ReadPropertyFloat('BatteryCapacity') / 0.9;
+            $goal = sprintf('%d %% → %d %%', $soc, $targetSoc);
+        } else {
+            $target = (float) $this->GetValue('TargetEnergy');
+            $charged = $session - $base;
+            $need = $target - $charged;
+            if ($need <= 0.05) {
+                return [false, sprintf('Ziel erreicht (%s kWh)', self::Num($charged, 1))];
+            }
+            $goal = self::Num($need, 1) . ' kWh';
         }
 
         // Ladeleistung schätzen: Stromgrenze x 230 V x Phasen
@@ -221,10 +241,10 @@ trait EaseeSchedule
         $startAt = $deadline - $seconds;
 
         if ($now >= $startAt) {
-            return [true, sprintf('Lädt: noch %s kWh bis %s', self::Num($need, 1), $deadlineText)];
+            return [true, sprintf('Lädt: %s bis %s', $goal, $deadlineText)];
         }
 
-        return [false, sprintf('Start um %s (%s kWh bis %s)', date('H:i', $startAt), self::Num($need, 1), $deadlineText)];
+        return [false, sprintf('Start um %s (%s bis %s)', date('H:i', $startAt), $goal, $deadlineText)];
     }
 
     private function SetScheduleInfo(string $info, bool $refreshViews = true): void

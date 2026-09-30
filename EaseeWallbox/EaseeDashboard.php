@@ -81,6 +81,7 @@ trait EaseeDashboard
             . $kpi('Session Kosten', $n($this->GetValue('SessionCost')), '€')
             . $kpi('Gesamtenergie', $n($this->GetValue('LifetimeEnergy'), 0), 'kWh')
             . $kpi('Gesamtkosten', $n($this->GetValue('LifetimeCost')), '€')
+            . ($this->CurrentSoc() !== null ? $kpi('Akkustand Fahrzeug', (string) $this->CurrentSoc(), '%') : '')
             . $kpi('Heute', $n($this->GetValue('EnergyToday')) . ' kWh', $n($this->GetValue('CostToday')) . ' €')
             . $kpi('Dieser Monat', $n($this->GetValue('EnergyMonth'), 1) . ' kWh', $n($this->GetValue('CostMonth')) . ' €')
             . $kpi('Dieses Jahr', $n($this->GetValue('EnergyYear'), 0) . ' kWh', $n($this->GetValue('CostYear')) . ' €')

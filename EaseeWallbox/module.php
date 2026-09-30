@@ -77,6 +77,13 @@ class EaseeWallbox extends IPSModule
         $this->RegisterPropertyString('TileBackground', '');
         $this->RegisterPropertyInteger('TileDim', 55);
         $this->RegisterPropertyInteger('TileBlur', 0);
+        $this->RegisterPropertyString('CarImage', '');
+        $this->RegisterPropertyBoolean('CarMirror', false);
+        $this->RegisterPropertyInteger('CarPortX', 20);
+        $this->RegisterPropertyInteger('CarPortY', 45);
+        $this->RegisterPropertyBoolean('EnableSoc', false);
+        $this->RegisterPropertyInteger('SocVariable', 0);
+        $this->RegisterPropertyFloat('BatteryCapacity', 15.0);
         $this->RegisterPropertyBoolean('EnableSchedule', false);
         $this->RegisterPropertyInteger('ScheduleBuffer', 30);
 
@@ -94,6 +101,7 @@ class EaseeWallbox extends IPSModule
         $this->RegisterAttributeFloat('LastLifetime', 0);
         $this->RegisterAttributeString('Stats', '{}');
         $this->RegisterAttributeString('DayKey', '');
+        $this->RegisterAttributeInteger('SocWatched', 0);
         $this->RegisterAttributeInteger('PriceMigrated', 0);
         $this->RegisterAttributeInteger('LastPhases', 3);
         $this->RegisterScheduleAttributes();
@@ -115,6 +123,7 @@ class EaseeWallbox extends IPSModule
         $this->CreateProfiles();
         $this->CreateVariables();
         $this->CreateScheduleVariables();
+        $this->SetupSoc();
 
         // Zugangsdaten geändert -> alte Tokens verwerfen
         $hash = md5($this->ReadPropertyString('Username') . '|' . $this->ReadPropertyString('Password'));
@@ -185,6 +194,12 @@ class EaseeWallbox extends IPSModule
     {
         if ($Message === IPS_KERNELSTARTED) {
             $this->ApplyChanges();
+            return;
+        }
+
+        // Akkustand des Fahrzeugs hat sich geändert
+        if ($Message === VM_UPDATE && $SenderID === $this->ReadAttributeInteger('SocWatched')) {
+            $this->UpdateSoc();
         }
     }
 
@@ -524,6 +539,68 @@ class EaseeWallbox extends IPSModule
         $this->SetValue('SessionCost', round($this->GetValue('SessionEnergy') * $price, 2));
         $this->SetValue('LifetimeCost', round($this->GetValue('LifetimeEnergy') * $price, 2));
         $this->RefreshViews();
+    }
+
+    // =================================================================
+    // Akkustand des Fahrzeugs (optional, aus einer beliebigen Variable)
+    // =================================================================
+
+    private function SocEnabled(): bool
+    {
+        $id = $this->ReadPropertyInteger('SocVariable');
+        return $this->ReadPropertyBoolean('EnableSoc') && $id > 0 && @IPS_VariableExists($id);
+    }
+
+    /** Variable anlegen/entfernen und Änderungen der Quellvariable abonnieren. */
+    private function SetupSoc(): void
+    {
+        $enabled = $this->ReadPropertyBoolean('EnableSoc');
+        $this->MaintainVariable('SoC', 'Akkustand Fahrzeug', VARIABLETYPE_INTEGER, 'EaseeWB.Percent', 5, $enabled);
+
+        $old = $this->ReadAttributeInteger('SocWatched');
+        $new = $this->SocEnabled() ? $this->ReadPropertyInteger('SocVariable') : 0;
+
+        if ($old > 0 && $old !== $new) {
+            $this->UnregisterMessage($old, VM_UPDATE);
+        }
+        if ($new > 0 && $old !== $new) {
+            $this->RegisterMessage($new, VM_UPDATE);
+        }
+        $this->WriteAttributeInteger('SocWatched', $new);
+
+        if ($new > 0) {
+            $this->UpdateSoc(false);
+        }
+    }
+
+    /** Aktuellen Akkustand in Prozent (null = nicht verfügbar). */
+    private function CurrentSoc(): ?int
+    {
+        if (!$this->SocEnabled()) {
+            return null;
+        }
+
+        $value = GetValue($this->ReadPropertyInteger('SocVariable'));
+        if (!is_numeric($value)) {
+            return null;
+        }
+
+        return (int) round(max(0, min(100, (float) $value)));
+    }
+
+    private function UpdateSoc(bool $refresh = true): void
+    {
+        $soc = $this->CurrentSoc();
+        if ($soc === null || @$this->GetIDForIdent('SoC') === false) {
+            return;
+        }
+
+        $this->SetValue('SoC', $soc);
+
+        if ($refresh) {
+            $this->EvaluateSchedule(false);
+            $this->RefreshViews();
+        }
     }
 
     /** Um Mitternacht "heute" auf 0 setzen. */
@@ -941,6 +1018,7 @@ class EaseeWallbox extends IPSModule
         $this->RegisterProfile('EaseeWB.EUR', VARIABLETYPE_FLOAT, ' €', 2, 'Euro');
         $this->RegisterProfile('EaseeWB.Price', VARIABLETYPE_FLOAT, ' €/kWh', 4, 'Euro', 0, 2, 0.01);
         $this->RegisterProfile('EaseeWB.dBm', VARIABLETYPE_INTEGER, ' dBm', 0, 'Intensity');
+        $this->RegisterProfile('EaseeWB.Percent', VARIABLETYPE_INTEGER, ' %', 0, 'Battery', 0, 100, 1);
         $this->RegisterProfile('EaseeWB.Ampere', VARIABLETYPE_INTEGER, ' A', 0, 'Electricity', 6, $this->MaxAmpere(), 1);
         $this->RegisterProfile('EaseeWB.Target', VARIABLETYPE_FLOAT, ' kWh', 0, 'Battery', 1, 100, 1);
 

@@ -27,7 +27,13 @@ trait EaseeTile
     /** Hintergrundbild als data-URL (leer = kein Bild). */
     private function TileBackgroundUrl(): string
     {
-        $base64 = trim($this->ReadPropertyString('TileBackground'));
+        return $this->ImageDataUrl('TileBackground');
+    }
+
+    /** Bild aus einer Eigenschaft (SelectFile, base64) als data-URL. */
+    private function ImageDataUrl(string $property): string
+    {
+        $base64 = trim($this->ReadPropertyString($property));
         if ($base64 === '') {
             return '';
         }
@@ -77,10 +83,20 @@ trait EaseeTile
             'limitMax'  => $this->MaxAmpere(),
             'schedule'  => $schedule,
             'ok'        => (bool) $this->GetValue('ApiOk') && (bool) $this->GetValue('Online'),
+            'soc'       => $this->CurrentSoc(),
+            'socTarget' => ($this->CurrentSoc() !== null && @$this->GetIDForIdent('TargetSoc') !== false
+                            && (int) $this->GetValue('ScheduleMode') === 2) ? (int) $this->GetValue('TargetSoc') : null,
+            'progress'  => $this->ChargeProgress(),
             'updated'   => (int) $this->GetValue('LastUpdate') > 0 ? date('H:i', (int) $this->GetValue('LastUpdate')) : '-'
         ];
 
         if ($withBackground) {
+            $data['car'] = [
+                'image'  => $this->ImageDataUrl('CarImage'),
+                'mirror' => $this->ReadPropertyBoolean('CarMirror'),
+                'px'     => max(0, min(100, $this->ReadPropertyInteger('CarPortX'))),
+                'py'     => max(0, min(100, $this->ReadPropertyInteger('CarPortY')))
+            ];
             $data['bg'] = [
                 'image' => $this->TileBackgroundUrl(),
                 'dim'   => max(0, min(90, $this->ReadPropertyInteger('TileDim'))) / 100,
@@ -89,5 +105,28 @@ trait EaseeTile
         }
 
         return $data;
+    }
+
+    /**
+     * Ladefortschritt für den Akku im Auto-Symbol in Prozent:
+     * Akkustand des Fahrzeugs, sonst Fortschritt zum kWh-Ziel von "Fertig bis",
+     * sonst null (dann nur Animation beim Laden).
+     */
+    private function ChargeProgress(): ?int
+    {
+        $soc = $this->CurrentSoc();
+        if ($soc !== null) {
+            return $soc;
+        }
+
+        if ($this->ScheduleEnabled() && (int) $this->GetValue('ScheduleMode') === 2 && (bool) $this->GetValue('VehicleConnected')) {
+            $target = (float) $this->GetValue('TargetEnergy');
+            if ($target > 0) {
+                $charged = max(0.0, (float) $this->GetValue('SessionEnergy') - $this->ReadAttributeFloat('DeadlineBaseEnergy'));
+                return (int) round(min(100, $charged / $target * 100));
+            }
+        }
+
+        return null;
     }
 }

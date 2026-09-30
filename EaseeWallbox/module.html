@@ -77,6 +77,18 @@
     .ew-row.sched.on { display: flex; }
     .ew-row.sched .ew-value { font-weight: 500; font-size: clamp(12px, 1.8vmin, 15px); white-space: normal; }
 
+    /* Akkustand */
+    .ew-row.soc { display: none; }
+    .ew.has-soc .ew-row.soc { display: flex; }
+    .ew-socbar { position: relative; flex: 1; min-width: 40px; max-width: 220px; height: 8px; margin-left: auto;
+                 border-radius: 99px; background: var(--line); overflow: hidden; }
+    .ew-socbar span { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 99px; background: var(--c); transition: width .8s ease; }
+    .ew-socbar i { position: absolute; top: -2px; bottom: -2px; width: 2px; background: currentColor; opacity: .6; display: none; }
+    .ew-socval { margin-left: 10px; min-width: 52px; }
+
+    /* Mit Akku-Zeile wird es enger: Grafik früher ausblenden */
+    @media (max-height: 680px) { .ew.has-soc .ew-scene { display: none; } }
+
     /* Stromgrenze */
     .ew-stepper { margin-left: auto; display: flex; align-items: center; gap: 4px; }
     .ew-step { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line); background: transparent;
@@ -110,9 +122,20 @@
     .ew-scene .car { fill: rgba(127,127,127,.2); stroke: rgba(127,127,127,.6); stroke-width: 1.3; }
     .ew-scene .glass { fill: rgba(127,127,127,.16); }
     .ew-scene .wheel { fill: rgba(30,30,30,.85); stroke: rgba(127,127,127,.65); stroke-width: 1.8; }
-    .ew-scene .batt-frame { fill: none; stroke: rgba(127,127,127,.6); stroke-width: 1.1; }
-    .ew-scene .batt { fill: var(--c); opacity: 0; transform-origin: 90px 68px; }
+    .ew-scene .batt-frame { fill: none; stroke: rgba(127,127,127,.7); stroke-width: 1.1; }
+    .ew-scene .batt-tip { fill: rgba(127,127,127,.7); }
+    .ew-scene .batt-bg { fill: rgba(0,0,0,.45); display: none; }
+    .ew-scene .batt { fill: var(--c); opacity: 0; transform-box: fill-box; transform-origin: left center; }
     .ew.charging .ew-scene .batt { opacity: 1; animation: fill 2.6s ease-in-out infinite; }
+    .ew-scene .batt.real { opacity: 1; animation: none; transition: width .8s ease; }
+    .ew.charging .ew-scene .batt.real { animation: blink 1.8s ease-in-out infinite; }
+    .ew-scene .batt-txt { font-size: 6.4px; font-weight: 600; fill: currentColor; }
+    .ew-scene .plug { fill: rgba(127,127,127,.8); }
+    .ew.charging .ew-scene .plug { fill: var(--c); filter: drop-shadow(0 0 2px var(--c)); }
+    .ew-scene.photo .batt-bg { display: block; }
+    .ew-scene.photo .batt-frame, .ew-scene.photo .batt-tip { stroke: rgba(255,255,255,.85); }
+    .ew-scene.photo .batt-tip { fill: rgba(255,255,255,.85); }
+    .ew-scene.photo .batt-txt { fill: #fff; }
     .ew.empty .ew-scene .car-g, .ew.empty .ew-scene .cable-g { opacity: .15; transition: opacity .4s; }
 
     @keyframes blink { 50% { opacity: .35; } }
@@ -161,6 +184,11 @@
         .ew-row.session, .ew-row.today { display: flex; padding: 6px 0; gap: 8px; }
         .ew-row.session { border-top: 0; }
         .ew-row.today { border-bottom: 0; }
+        .ew.has-soc .ew-row.soc { display: flex; padding: 6px 0; gap: 8px; border-top: 0; }
+        .ew.has-soc .ew-row.today { display: none; }
+        .ew.has-soc .ew-row.session { border-bottom: 0; }
+        .ew-socbar { display: none; }
+        .ew-socval { margin-left: auto; min-width: 0; }
         .ew-ico { width: 15px; height: 15px; }
         .ew-label { font-size: 12px; }
         .ew-value { font-size: 14px; }
@@ -198,21 +226,40 @@
             <svg class="ew-scene" viewBox="0 0 145 100" aria-hidden="true">
                 <rect class="box" x="6" y="14" width="30" height="46" rx="9"/>
                 <rect class="led" x="19" y="22" width="4" height="22" rx="2"/>
-                <g class="cable-g">
-                    <path class="cable" d="M21 60 C 21 92, 70 94, 96 70"/>
-                    <path class="flow" d="M21 60 C 21 92, 70 94, 96 70"/>
-                </g>
                 <g class="car-g">
-                    <path class="car" d="M60 70 L64 58 Q67 49 76 48 L104 47 Q113 47 119 55 L126 62 Q139 64 140 72 L140 78 Q140 81 137 81 L63 81 Q60 81 60 78 Z"/>
-                    <path class="glass" d="M70 57 Q72 52 78 51.5 L90 51 L90 59 L69 59 Z"/>
-                    <path class="glass" d="M94 51 L104 50.5 Q110 50.5 114 55 L117 59 L94 59 Z"/>
-                    <circle class="wheel" cx="78" cy="81" r="8"/>
-                    <circle class="wheel" cx="123" cy="81" r="8"/>
-                    <rect class="batt-frame" x="88" y="64" width="26" height="9" rx="2"/>
-                    <rect class="batt" x="90" y="66" width="22" height="5" rx="1"/>
+                    <!-- eingebautes Auto-Symbol -->
+                    <g id="carBuiltin">
+                        <path class="car" d="M60 70 L64 58 Q67 49 76 48 L104 47 Q113 47 119 55 L126 62 Q139 64 140 72 L140 78 Q140 81 137 81 L63 81 Q60 81 60 78 Z"/>
+                        <path class="glass" d="M70 57 Q72 52 78 51.5 L90 51 L90 59 L69 59 Z"/>
+                        <path class="glass" d="M94 51 L104 50.5 Q110 50.5 114 55 L117 59 L94 59 Z"/>
+                        <circle class="wheel" cx="78" cy="81" r="8"/>
+                        <circle class="wheel" cx="123" cy="81" r="8"/>
+                    </g>
+                    <!-- eigenes Fahrzeugbild (aus der Instanz) -->
+                    <image id="carImg" x="50" y="22" width="93" height="66" preserveAspectRatio="xMidYMax meet" style="display:none"/>
+                </g>
+                <!-- Kabel von der Wallbox zum Ladeanschluss, Strom fließt animiert -->
+                <g class="cable-g">
+                    <path class="cable" id="cable" d="M21 60 C 21 90, 33 88, 63 66"/>
+                    <path class="flow" id="flow" d="M21 60 C 21 90, 33 88, 63 66"/>
+                    <circle class="plug" id="plug" cx="63" cy="66" r="2.2"/>
+                </g>
+                <!-- Akku mit Ladefortschritt -->
+                <g id="battG" transform="translate(88 64)">
+                    <rect class="batt-bg" x="-3" y="-3" width="46" height="15" rx="4"/>
+                    <rect class="batt-frame" x="0" y="0" width="26" height="9" rx="2"/>
+                    <rect class="batt-tip" x="26" y="3" width="1.8" height="3" rx=".6"/>
+                    <rect class="batt" id="batt" x="2" y="2" width="22" height="5" rx="1"/>
+                    <text class="batt-txt" id="battTxt" x="30" y="7.4"></text>
                 </g>
             </svg>
 
+            <div class="ew-row soc" id="socRow">
+                <svg class="ew-ico" viewBox="0 0 24 24"><rect x="2" y="7" width="18" height="10" rx="2"/><path d="M22 11v2"/></svg>
+                <span class="ew-label">Akku</span>
+                <span class="ew-socbar"><span id="socFill"></span><i id="socMark"></i></span>
+                <span class="ew-value ew-socval"><span id="socVal">–</span><small id="socTarget"></small></span>
+            </div>
             <div class="ew-row session">
                 <svg class="ew-ico" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>
                 <span class="ew-label">Ladung</span>
@@ -280,6 +327,27 @@
         $('power').textContent = state.power;
         $('maxkw').textContent = state.maxKW;
 
+        // Akkustand (nur wenn in der Instanz aktiviert)
+        const hasSoc = state.soc !== null && state.soc !== undefined;
+        root.classList.toggle('has-soc', hasSoc);
+        if (hasSoc) {
+            $('socVal').textContent = state.soc + ' %';
+            $('socFill').style.width = state.soc + '%';
+            const t = state.socTarget;
+            $('socTarget').textContent = t ? '→ ' + t + ' %' : '';
+            $('socMark').style.display = t ? 'block' : 'none';
+            if (t) $('socMark').style.left = 'calc(' + t + '% - 1px)';
+        }
+        // Fahrzeugbild/Anschluss nur beim Laden der Kachel bzw. nach Änderung in der Instanz
+        if (state.car) setCar(state.car);
+
+        // Akku im Auto-Symbol: Fortschritt (Akkustand oder Ziel), sonst Animation beim Laden
+        const batt = $('batt');
+        const p = (state.progress === null || state.progress === undefined) ? null : state.progress;
+        batt.classList.toggle('real', p !== null);
+        batt.setAttribute('width', p !== null ? Math.max(0.8, 22 * p / 100).toFixed(1) : 22);
+        $('battTxt').textContent = p !== null ? p + ' %' : '';
+
         $('sessionE').textContent = state.sessionE;
         $('sessionC').textContent = state.sessionC + ' €';
         $('todayE').textContent = state.todayE;
@@ -305,6 +373,53 @@
         toggle.textContent = state.charging ? 'Laden pausieren' : 'Laden starten';
         toggle.className = 'ew-action ' + (state.charging ? 'stop' : 'start');
         toggle.disabled = !state.connected;
+    }
+
+    // Eigenes Fahrzeugbild einsetzen und Kabel an den Ladeanschluss führen
+    const CAR_BOX = { x: 50, y: 22, w: 93, h: 66 };
+
+    function setCar(car) {
+        const img = $('carImg');
+        const scene = document.querySelector('.ew-scene');
+
+        if (!car.image) {
+            img.style.display = 'none';
+            $('carBuiltin').style.display = '';
+            scene.classList.remove('photo');
+            placeScene(63, 66, 88, 64);
+            return;
+        }
+
+        const probe = new Image();
+        probe.onload = () => {
+            // Bild wird unten bündig eingepasst ("xMidYMax meet")
+            const s = Math.min(CAR_BOX.w / probe.naturalWidth, CAR_BOX.h / probe.naturalHeight);
+            const w = probe.naturalWidth * s, h = probe.naturalHeight * s;
+            const x = CAR_BOX.x + (CAR_BOX.w - w) / 2, y = CAR_BOX.y + CAR_BOX.h - h;
+
+            img.setAttribute('href', car.image);
+            img.style.transformBox = 'fill-box';
+            img.style.transformOrigin = 'center';
+            img.style.transform = car.mirror ? 'scaleX(-1)' : '';
+            img.style.display = '';
+            $('carBuiltin').style.display = 'none';
+            scene.classList.add('photo');
+
+            // Ladeanschluss in Prozent des angezeigten Bildes
+            const px = x + w * car.px / 100, py = y + h * car.py / 100;
+            placeScene(px, py, x + w / 2 - 20, Math.min(91, y + h + 1));
+        };
+        probe.src = car.image;
+    }
+
+    function placeScene(px, py, bx, by) {
+        const d = 'M21 60 C 21 ' + (py + 24).toFixed(1) + ', ' + (px - 30).toFixed(1) + ' ' + (py + 22).toFixed(1) + ', '
+                + px.toFixed(1) + ' ' + py.toFixed(1);
+        $('cable').setAttribute('d', d);
+        $('flow').setAttribute('d', d);
+        $('plug').setAttribute('cx', px.toFixed(1));
+        $('plug').setAttribute('cy', py.toFixed(1));
+        $('battG').setAttribute('transform', 'translate(' + bx.toFixed(1) + ' ' + by.toFixed(1) + ')');
     }
 
     // Easee meldet ohne Begrenzung den Hardware-Maximalwert (z. B. 32 A) → "max"

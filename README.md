@@ -49,6 +49,7 @@ Alle Variablen, Profile und Timer werden automatisch angelegt – ein Setup-Skri
 | Sicherheitspuffer | So viel früher startet „Fertig bis“ als rechnerisch nötig (Standard 30 min) |
 | Strompreis | Arbeitspreis in €/kWh für alle Kostenberechnungen |
 | Hintergrundbild / abdunkeln / weichzeichnen | Optionales Bild hinter der Kachel (siehe unten) |
+| Akkustand Fahrzeug | Schalter, Quellvariable (0–100 %) und nutzbare Akkugröße – siehe unten |
 | Dashboard-Variable | Legt die HTMLBox-Variable „Dashboard“ an |
 | Ladeleistung archivieren | Aktiviert automatisch das Logging von „Ladeleistung“ (für das Diagramm) |
 | Energie und Kosten als Zähler archivieren | Archiviert „Gesamtenergie“ und „Kosten gesamt“ als Zähler – daraus bildet Symcon Werte pro Tag, Woche, Monat und Jahr |
@@ -135,6 +136,22 @@ $werte  = AC_GetAggregatedValues($archiv, <ID von Gesamtenergie>, 1 /* Tag */, s
 
 Die Aufzeichnung beginnt mit der Aktivierung – die Easee-API liefert keine Tageswerte der Vergangenheit.
 
+## Akkustand des Fahrzeugs (optional)
+
+Eine AC-Wallbox erfährt vom Auto nicht, wie voll der Akku ist. Liegt der Akkustand aber schon in Symcon vor
+(z. B. über ein Modul für die Hersteller-Cloud des Autos), kann das Modul ihn anzeigen und nutzen:
+
+1. Im Formular unter **„Akkustand Fahrzeug“** den Schalter aktivieren.
+2. Die **Variable mit dem Akkustand** (0–100 %) auswählen.
+3. Die **nutzbare Akkugröße** in kWh eintragen (nur für „Fertig bis“ in Prozent nötig).
+
+Dann gibt es die Variable **„Akkustand Fahrzeug“**, eine Zeile **„Akku“** mit Balken in Kachel und Dashboard, und der Akku im
+Auto-Symbol zeigt den echten Füllstand. Bei aktiver Zeitsteuerung kommt **„Ziel-Akkustand“** dazu: Im Modus „Fertig bis“ lädt die
+Wallbox dann bis zu diesem Prozentwert statt bis zu einer kWh-Menge (Ladezeit geschätzt aus Akkugröße, Ladeleistung und ca. 10 %
+Ladeverlusten) und pausiert, sobald das Ziel erreicht ist. Das Modul reagiert sofort, wenn sich die Quellvariable ändert.
+
+Ohne aktivierten Schalter bleibt alles wie bisher – nicht jedes Auto bietet eine Schnittstelle.
+
 ## Statistik
 
 Die Monats- und Jahreswerte werden aus dem **Zählerstand** der Wallbox berechnet und enthalten daher jede
@@ -154,6 +171,21 @@ Ring, Stromgrenze und Start/Pause. Ist der Ladestrom nicht begrenzt, steht dort 
 
 Auf dem **Handy** (flache Kachel) zeigt die Kachel links den Ring und rechts Ladung, Heute und den Start/Pause-Knopf.
 Über das Vergrößern-Symbol oben rechts öffnet Symcon die volle Ansicht mit allen Werten.
+
+### Fahrzeugbild und Ladefortschritt
+
+Das Auto-Symbol zeigt einen **Akku mit Ladefortschritt**: den Akkustand des Fahrzeugs (falls aktiviert), sonst bei „Fertig bis“
+den Fortschritt zum kWh-Ziel. Ohne beides pulsiert der Akku nur, solange geladen wird. Beim Laden fließt der Strom animiert
+durch das Kabel von der Wallbox bis zum Ladeanschluss.
+
+Statt des eingebauten Symbols kann unter **„Kachel“** ein **eigenes Fahrzeugbild** gewählt werden, z. B. ein Foto deines Autos:
+
+- Am besten ein **freigestelltes PNG** in Seitenansicht (transparenter Hintergrund, unter 300 KB).
+- **Bild spiegeln**, falls die Seite mit dem Ladeanschluss sonst von der Wallbox weg zeigt.
+- **Ladeanschluss von links / von oben** in Prozent des angezeigten Bildes – dorthin führt das Kabel. Nach dem Übernehmen sieht
+  man das Ergebnis sofort in der Kachel und kann nachjustieren.
+
+Der Akku wird bei einem eigenen Bild als kleine Anzeige unter dem Fahrzeug eingeblendet.
 
 ### Hintergrundbild
 
@@ -225,6 +257,8 @@ Armin Frohwerk
 
 ## Versionen
 
+- **1.11** – Akku im Auto-Symbol zeigt den Ladefortschritt in Prozent, Kabel endet am Ladeanschluss, eigenes Fahrzeugbild mit einstellbarem Ladeanschluss
+- **1.10** – Optionaler Akkustand des Fahrzeugs aus einer beliebigen Variable (Kachel, Dashboard, „Fertig bis“ mit Ziel in Prozent)
 - **1.9** – Kompakte Handy-Ansicht für flache Kacheln: Ring links, Ladung/Heute und Start/Pause rechts
 - **1.8** – Eigenes Hintergrundbild für die Kachel (mit Abdunkeln und Weichzeichnen)
 - **1.7** – Energie und Kosten pro Tag (Variablen „heute“, Archiv als Zähler für Tag/Woche/Monat/Jahr), laufender Kostenzähler, Strompreis wird im Instanz-Formular gepflegt, Zeile „Heute“ in Kachel und Dashboard
