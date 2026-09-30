@@ -64,7 +64,7 @@ Alle Variablen, Profile und Timer werden automatisch angelegt – ein Setup-Skri
 | Ladestrom / Strom L1–L3 | Float (A) | Ladestrom gesamt und je Phase |
 | Ladestrom-Grenze | Integer (A), schaltbar | Maximaler Ladestrom je Phase |
 | Phasen | Integer | Anzahl genutzter Phasen |
-| Session Energie / Kosten | Float | Energie seit dem Einstecken des Fahrzeugs |
+| Session Energie / Kosten | Float | Energie seit dem Einstecken des Fahrzeugs (Maximum aus Easee-Session-Zähler, Gesamtzähler-Differenz und aufsummierter Ladeleistung) |
 | Gesamtenergie / Gesamtkosten | Float | Zählerstand der Wallbox, Kosten mit aktuellem Preis geschätzt |
 | Strompreis | Float (€/kWh) | Anzeige des im Formular eingetragenen Preises |
 | Energie heute / Kosten heute | Float | Seit Mitternacht geladen, springt um 0 Uhr auf 0 |
@@ -257,6 +257,7 @@ Armin Frohwerk
 
 ## Versionen
 
+- **1.12** – „Ladung“ zeigt sofort Werte: Session-Energie wird zusätzlich aus Gesamtzähler und Ladeleistung mitgerechnet, weil die Easee-Cloud ihren Session-Zähler nur verzögert aktualisiert
 - **1.11** – Akku im Auto-Symbol zeigt den Ladefortschritt in Prozent, Kabel endet am Ladeanschluss, eigenes Fahrzeugbild mit einstellbarem Ladeanschluss
 - **1.10** – Optionaler Akkustand des Fahrzeugs aus einer beliebigen Variable (Kachel, Dashboard, „Fertig bis“ mit Ziel in Prozent)
 - **1.9** – Kompakte Handy-Ansicht für flache Kacheln: Ring links, Ladung/Heute und Start/Pause rechts

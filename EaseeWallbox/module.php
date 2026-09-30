@@ -96,6 +96,10 @@ class EaseeWallbox extends IPSModule
         $this->RegisterAttributeString('ChargerName', '');
         $this->RegisterAttributeInteger('SessionStart', 0);
         $this->RegisterAttributeFloat('SessionStartEnergy', 0);
+        $this->RegisterAttributeInteger('PlugConnected', 0);
+        $this->RegisterAttributeFloat('PlugLifetime', 0);
+        $this->RegisterAttributeFloat('PlugIntegral', 0);
+        $this->RegisterAttributeInteger('LastPoll', 0);
         $this->RegisterAttributeInteger('StopPending', 0);
         $this->RegisterAttributeString('History', '[]');
         $this->RegisterAttributeFloat('LastLifetime', 0);
@@ -410,6 +414,10 @@ class EaseeWallbox extends IPSModule
 
         $vehicleConnected = in_array($opMode, [2, 3, 4, 6, 7], true);
 
+        // Easee aktualisiert den Session-Zähler in der Cloud nur verzögert -
+        // deshalb zusätzlich selbst mitrechnen und den größten Wert nehmen
+        $sessionEnergy = $this->EstimateSessionEnergy($sessionEnergy, $lifetimeEnergy, $power, $vehicleConnected);
+
         // --- Ladevorgang erkennen (mit Schutzzeit gegen Aussetzer) ---
         $wasCharging = (bool) $this->GetValue('ChargingActive');
         $isCharging = $wasCharging;
@@ -486,6 +494,45 @@ class EaseeWallbox extends IPSModule
         $this->SetValue('ErrorCode', $errorCode);
         $this->SetValue('ErrorText', self::ErrorText($errorCode));
         $this->SetValue('LastUpdate', time());
+    }
+
+    /**
+     * Geladene Energie seit dem Einstecken: Maximum aus
+     *  - Session-Zähler der Easee-Cloud (verzögert),
+     *  - Differenz des Gesamtzählers seit dem Einstecken,
+     *  - aufsummierter Ladeleistung zwischen den Abrufen.
+     */
+    private function EstimateSessionEnergy(float $cloud, float $lifetime, float $powerKW, bool $connected): float
+    {
+        $now = time();
+        $last = $this->ReadAttributeInteger('LastPoll');
+        $this->WriteAttributeInteger('LastPoll', $now);
+
+        if (!$connected) {
+            $this->WriteAttributeInteger('PlugConnected', 0);
+            $this->WriteAttributeFloat('PlugIntegral', 0);
+            return $cloud;
+        }
+
+        if ($this->ReadAttributeInteger('PlugConnected') === 0) {
+            // Gerade eingesteckt (oder Modul neu gestartet)
+            $this->WriteAttributeInteger('PlugConnected', 1);
+            $this->WriteAttributeFloat('PlugLifetime', $lifetime);
+            $this->WriteAttributeFloat('PlugIntegral', 0);
+        } elseif ($last > 0 && $powerKW > 0) {
+            $seconds = min(900, max(0, $now - $last));
+            $this->WriteAttributeFloat('PlugIntegral', $this->ReadAttributeFloat('PlugIntegral') + $powerKW * $seconds / 3600);
+        }
+
+        $plugLifetime = $this->ReadAttributeFloat('PlugLifetime');
+        $fromCounter = ($lifetime > 0 && $plugLifetime > 0) ? max(0.0, $lifetime - $plugLifetime) : 0.0;
+        if ($fromCounter > 150 || $lifetime < $plugLifetime) {
+            // Unplausibler Sprung (Zähler getauscht o. Ä.) -> neu aufsetzen
+            $this->WriteAttributeFloat('PlugLifetime', $lifetime);
+            $fromCounter = 0.0;
+        }
+
+        return max($cloud, $fromCounter, $this->ReadAttributeFloat('PlugIntegral'));
     }
 
     private function FinishSession(float $sessionEnergy, float $price): void
