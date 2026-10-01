@@ -38,6 +38,12 @@
     .ew-status { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; letter-spacing: .2px; }
     .ew-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 22%, transparent); }
     .ew.charging .ew-dot { animation: pulse 1.6s ease-in-out infinite; }
+    .ew-guest { display: none; border: 1px solid rgba(127,127,127,.35); background: rgba(127,127,127,.1); color: inherit;
+                font: inherit; font-size: 11px; font-weight: 600; padding: 3px 9px 3px 7px; border-radius: 99px; cursor: pointer;
+                align-items: center; gap: 5px; white-space: nowrap; }
+    .ew-guest.on { display: inline-flex; }
+    .ew-guest svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .ew-guest.guest { border-color: rgba(243,156,18,.6); background: rgba(243,156,18,.16); color: #f5b041; }
     .ew-updated { margin-left: auto; font-size: 11px; color: var(--muted); }
 
     /* ---------- Hauptbereich ---------- */
@@ -224,6 +230,10 @@
 <div class="ew" id="root">
     <div class="ew-head">
         <span class="ew-status"><span class="ew-dot"></span><span id="status">–</span></span>
+        <button class="ew-guest" id="guest" onclick="toggleGuest()" title="Umschalten: eigenes Auto / Gastladung">
+            <svg viewBox="0 0 24 24"><path d="M5 17h14v-4l-2-5H7l-2 5z"/><circle cx="8" cy="17" r="1.6"/><circle cx="16" cy="17" r="1.6"/></svg>
+            <span id="guestTxt">Eigenes Auto</span>
+        </button>
         <span class="ew-updated" id="updated"></span>
     </div>
 
@@ -342,6 +352,7 @@
 
 <script>
     let state = null;
+    let lastCar = null, lastGuest = null;
     const $ = (id) => document.getElementById(id);
 
     function handleMessage(data) {
@@ -381,7 +392,17 @@
             if (t) $('socMark').style.left = 'calc(' + t + '% - 1px)';
         }
         // Fahrzeugbild/Anschluss nur beim Laden der Kachel bzw. nach Änderung in der Instanz
-        if (state.car) setCar(state.car);
+        if (state.car) lastCar = state.car;
+        const guest = !!state.guest;
+        if (state.car || guest !== lastGuest) {
+            // Gastladung: neutrales Auto statt eigenem Fahrzeugbild
+            setCar(guest ? { image: '' } : (lastCar || { image: '' }));
+            lastGuest = guest;
+        }
+        const gb = $('guest');
+        gb.classList.toggle('on', !!state.guestUse || guest);
+        gb.classList.toggle('guest', guest);
+        $('guestTxt').textContent = guest ? 'Gastladung' : 'Eigenes Auto';
 
         // Akku im Auto-Symbol: Fortschritt (Akkustand oder Ziel), sonst Animation beim Laden
         const p = (state.progress === null || state.progress === undefined) ? null : Math.max(0, Math.min(100, state.progress));
@@ -404,7 +425,7 @@
         if (state.phases > 0) {
             $('conn').innerHTML = state.phases + '-phasig<small>' + state.current + ' A</small>';
         } else {
-            $('conn').textContent = state.connected ? 'Fahrzeug verbunden' : 'Kein Fahrzeug';
+            $('conn').textContent = state.connected ? (state.guest ? 'Gastfahrzeug verbunden' : 'Fahrzeug verbunden') : 'Kein Fahrzeug';
         }
 
         $('schedRow').classList.toggle('on', !!state.schedule);
@@ -474,6 +495,11 @@
         $('limit').textContent = value <= 0 ? '–' : (isMax ? 'max' : value + ' A');
         $('minus').disabled = value > 0 && value <= 6;
         $('plus').disabled = isMax;
+    }
+
+    function toggleGuest() {
+        if (!state) return;
+        requestAction('GuestCharging', !state.guest);
     }
 
     function toggleCharging() {

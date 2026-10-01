@@ -87,6 +87,9 @@ trait EaseeTile
             'socTarget' => ($this->CurrentSoc() !== null && @$this->GetIDForIdent('TargetSoc') !== false
                             && (int) $this->GetValue('ScheduleMode') === 2) ? (int) $this->GetValue('TargetSoc') : null,
             'progress'  => $this->ChargeProgress(),
+            'guest'     => $this->IsGuest(),
+            // Umschalter nur zeigen, wenn es etwas Fahrzeugbezogenes gibt
+            'guestUse'  => $this->SocEnabled() || $this->ReadPropertyString('CarImage') !== '',
             'updated'   => (int) $this->GetValue('LastUpdate') > 0 ? date('H:i', (int) $this->GetValue('LastUpdate')) : '-'
         ];
 

@@ -82,6 +82,7 @@ class EaseeWallbox extends IPSModule
         $this->RegisterPropertyInteger('CarPortX', 20);
         $this->RegisterPropertyInteger('CarPortY', 45);
         $this->RegisterPropertyBoolean('EnableSoc', false);
+        $this->RegisterPropertyBoolean('GuestAutoReset', true);
         $this->RegisterPropertyInteger('SocVariable', 0);
         $this->RegisterPropertyFloat('BatteryCapacity', 15.0);
         $this->RegisterPropertyBoolean('EnableSchedule', false);
@@ -216,6 +217,13 @@ class EaseeWallbox extends IPSModule
 
             case 'ChargeLimit':
                 $this->SetChargeLimit((int) $Value);
+                break;
+
+            case 'GuestCharging':
+                $this->SetValue('GuestCharging', (bool) $Value);
+                $this->UpdateSoc(false);
+                $this->EvaluateSchedule(false);
+                $this->RefreshViews();
                 break;
 
             case 'CableLockPermanent':
@@ -483,6 +491,12 @@ class EaseeWallbox extends IPSModule
         $this->SetValue('LifetimeEnergy', round($lifetimeEnergy, 2));
         $this->SetValue('SessionCost', round($sessionEnergy * $price, 2));
         $this->SetValue('LifetimeCost', round($lifetimeEnergy * $price, 2));
+        // Gastladung endet mit dem Abstecken -> wieder eigenes Auto
+        if ($this->ReadPropertyBoolean('GuestAutoReset') && !$vehicleConnected
+            && (bool) $this->GetValue('VehicleConnected') && (bool) $this->GetValue('GuestCharging')) {
+            $this->SetValue('GuestCharging', false);
+            $this->SendDebug('Gastladung', 'Fahrzeug abgesteckt -> eigenes Auto', 0);
+        }
         $this->SetValue('VehicleConnected', $vehicleConnected);
         $this->SetValue('CableLocked', self::ToBool($v[self::OBS_CABLE_LOCKED] ?? false));
         $this->SetValue('CableLockPermanent', self::ToBool($v[self::OBS_CABLE_PERMANENT] ?? false));
@@ -623,7 +637,8 @@ class EaseeWallbox extends IPSModule
     /** Aktuellen Akkustand in Prozent (null = nicht verfügbar). */
     private function CurrentSoc(): ?int
     {
-        if (!$this->SocEnabled()) {
+        // Bei einer Gastladung gehört der Akkustand nicht zum angesteckten Auto
+        if (!$this->SocEnabled() || $this->IsGuest()) {
             return null;
         }
 
@@ -633,6 +648,17 @@ class EaseeWallbox extends IPSModule
         }
 
         return (int) round(max(0, min(100, (float) $value)));
+    }
+
+    private function IsGuest(): bool
+    {
+        return @$this->GetIDForIdent('GuestCharging') !== false && (bool) $this->GetValue('GuestCharging');
+    }
+
+    /** Gastladung ein-/ausschalten (true = fremdes Auto an der Wallbox). */
+    public function SetGuestCharging(bool $Guest): void
+    {
+        $this->RequestAction('GuestCharging', $Guest);
     }
 
     private function UpdateSoc(bool $refresh = true): void
@@ -1081,6 +1107,11 @@ class EaseeWallbox extends IPSModule
             [8, 'Abmeldung läuft', '', 0x7F8C8D]
         ]);
 
+        $this->RegisterProfile('EaseeWB.Guest', VARIABLETYPE_BOOLEAN, '', 0, 'Car', 0, 0, 0, [
+            [false, 'Eigenes Auto', '', 0x2ECC71],
+            [true, 'Gastladung', '', 0xF39C12]
+        ]);
+
         $this->RegisterProfile('EaseeWB.Schedule', VARIABLETYPE_INTEGER, '', 0, 'Clock', 0, 2, 0, [
             [0, 'Aus', '', -1],
             [1, 'Zeitfenster', '', 0x3498DB],
@@ -1139,6 +1170,7 @@ class EaseeWallbox extends IPSModule
         $this->RegisterVariableFloat('CostCounter', 'Kosten gesamt (seit Installation)', 'EaseeWB.EUR', 21);
 
         $this->RegisterVariableBoolean('VehicleConnected', 'Fahrzeug verbunden', '~Switch', 20);
+        $this->RegisterVariableBoolean('GuestCharging', 'Angestecktes Fahrzeug', 'EaseeWB.Guest', 24);
         $this->RegisterVariableBoolean('CableLocked', 'Kabel verriegelt', '~Switch', 21);
         $this->RegisterVariableBoolean('CableLockPermanent', 'Kabel dauerhaft verriegelt', '~Switch', 22);
         $this->RegisterVariableBoolean('SmartCharging', 'Smart Charging', '~Switch', 23);
@@ -1159,6 +1191,7 @@ class EaseeWallbox extends IPSModule
         $this->EnableAction('ChargingActive');
         $this->EnableAction('ChargeLimit');
         $this->EnableAction('CableLockPermanent');
+        $this->EnableAction('GuestCharging');
         // Strompreis wird im Instanz-Formular gepflegt
         $this->DisableAction('EnergyPrice');
     }

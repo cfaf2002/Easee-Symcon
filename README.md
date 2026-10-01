@@ -255,7 +255,20 @@ und „Kabel dauerhaft verriegelt“ sind jetzt direkt schaltbar, „Aktualisier
 
 Armin Frohwerk
 
+## Gastladung
+
+Lädt ein fremdes Auto an der Wallbox, passt der Akkustand aus der Fahrzeug-Variable nicht dazu. Deshalb gibt es den Schalter
+**„Angestecktes Fahrzeug“** (Eigenes Auto / Gastladung):
+- In der Kachel oben neben dem Status auf **„Eigenes Auto“** tippen → **„Gastladung“** (orange). Alternativ die Variable schalten
+  oder per Skript `EASEE_SetGuestCharging($id, true);`.
+- Bei einer Gastladung werden Akkustand und eigenes Fahrzeugbild ausgeblendet (neutrales Auto), „Fertig bis“ rechnet nur mit dem kWh-Ziel.
+- Energie und Kosten zählen weiter mit – es ist ja dein Strom.
+- Beim Abstecken wechselt der Schalter automatisch zurück auf „Eigenes Auto“ (abschaltbar unter „Akkustand Fahrzeug“).
+- Der Umschalter erscheint in der Kachel nur, wenn Akkustand oder ein eigenes Fahrzeugbild eingerichtet sind.
+
 ## Versionen
+
+**1.2 (Build 3)** – Schalter „Eigenes Auto / Gastladung“: bei einer Gastladung werden Akkustand und eigenes Fahrzeugbild ausgeblendet, endet automatisch beim Abstecken
 
 **1.2 (Build 2)** – Lichtstreifen der Wallbox füllt sich beim Laden von unten nach oben und startet dann wieder unten
 

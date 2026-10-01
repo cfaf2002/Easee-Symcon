@@ -134,6 +134,15 @@
                 {
                     "type": "Label",
                     "caption": "Die Wallbox kennt den Akkustand nicht – er muss aus einer anderen Quelle kommen (z. B. Hersteller-Cloud des Autos). Die Akkugröße wird nur für „Fertig bis“ mit Ziel in Prozent benötigt."
+                },
+                {
+                    "type": "CheckBox",
+                    "name": "GuestAutoReset",
+                    "caption": "Gastladung nach dem Abstecken automatisch beenden (wieder eigenes Auto)"
+                },
+                {
+                    "type": "Label",
+                    "caption": "Lädt ein fremdes Auto, in der Kachel oben auf „Eigenes Auto“ tippen (oder die Variable „Angestecktes Fahrzeug“ schalten): Dann werden Akkustand und eigenes Fahrzeugbild ausgeblendet und „Fertig bis“ rechnet ohne Prozent-Ziel. Energie und Kosten zählen weiter mit."
                 }
             ]
         },
