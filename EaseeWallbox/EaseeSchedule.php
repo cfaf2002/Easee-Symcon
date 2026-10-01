@@ -32,7 +32,7 @@ trait EaseeSchedule
         $this->MaintainVariable('ReadyBy', 'Fertig bis', VARIABLETYPE_INTEGER, '~UnixTimestampTime', 63, $keep);
         $this->MaintainVariable('TargetEnergy', 'Ziel-Energie', VARIABLETYPE_FLOAT, 'EaseeWB.Target', 64, $keep);
         $this->MaintainVariable('TargetSoc', 'Ziel-Akkustand', VARIABLETYPE_INTEGER, 'EaseeWB.Percent', 64,
-            $keep && $this->ReadPropertyBoolean('EnableSoc'));
+            $keep && $this->ReadPropertyBoolean('EnableSoc') && !$this->IsGuest());
         $this->MaintainVariable('ScheduleInfo', 'Zeitsteuerung Info', VARIABLETYPE_STRING, '', 65, $keep);
 
         if (!$keep) {

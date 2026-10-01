@@ -255,20 +255,21 @@ und „Kabel dauerhaft verriegelt“ sind jetzt direkt schaltbar, „Aktualisier
 
 Armin Frohwerk
 
-## Gastladung
+## Eigenes Auto oder Gastladung
 
-Lädt ein fremdes Auto an der Wallbox, passt der Akkustand aus der Fahrzeug-Variable nicht dazu. Deshalb gibt es den Schalter
-**„Angestecktes Fahrzeug“** (Eigenes Auto / Gastladung):
-- In der Kachel oben neben dem Status auf **„Eigenes Auto“** tippen → **„Gastladung“** (orange). Alternativ die Variable schalten
-  oder per Skript `EASEE_SetGuestCharging($id, true);`.
-- Bei einer Gastladung werden Akkustand und eigenes Fahrzeugbild ausgeblendet (neutrales Auto), „Fertig bis“ rechnet nur mit dem kWh-Ziel.
-- Energie und Kosten zählen weiter mit – es ist ja dein Strom.
-- Beim Abstecken wechselt der Schalter automatisch zurück auf „Eigenes Auto“ (abschaltbar unter „Akkustand Fahrzeug“).
-- Der Umschalter erscheint in der Kachel nur, wenn Akkustand oder ein eigenes Fahrzeugbild eingerichtet sind.
+In der Instanz unter **„Fahrzeug“ → „An der Wallbox lädt“** wird fest eingestellt, wer lädt – ganz klar entweder / oder:
+
+- **Eigenes Auto:** Hier wird gepflegt, woher der Akkustand kommt (Schalter, Variable, nutzbare Akkugröße). Die Kachel zeigt
+  Akkustand und – falls hinterlegt – das eigene Fahrzeugbild.
+- **Gastladung (fremde Fahrzeuge):** Kein Akkustand, kein eigenes Fahrzeugbild (neutrales Auto), „Fertig bis“ arbeitet nur
+  mit dem kWh-Ziel. Die Akku-Felder werden im Formular ausgeblendet. Die Einstellung gilt dauerhaft, auch nach dem Abstecken,
+  bis sie in der Instanz wieder umgestellt wird. Energie und Kosten werden weiter gezählt.
+
+In der Kachel selbst lässt sich das bewusst nicht umschalten.
 
 ## Versionen
 
-**1.2 (Build 3)** – Schalter „Eigenes Auto / Gastladung“: bei einer Gastladung werden Akkustand und eigenes Fahrzeugbild ausgeblendet, endet automatisch beim Abstecken
+**1.2 (Build 4)** – „Eigenes Auto“ oder „Gastladung“ wird fest in der Instanz eingestellt (kein Umschalten in der Kachel, kein automatisches Zurücksetzen); bei Gastladung kein Akkustand und neutrales Auto
 
 **1.2 (Build 2)** – Lichtstreifen der Wallbox füllt sich beim Laden von unten nach oben und startet dann wieder unten
 

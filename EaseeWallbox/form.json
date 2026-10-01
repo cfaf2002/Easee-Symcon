@@ -109,8 +109,24 @@
         },
         {
             "type": "ExpansionPanel",
-            "caption": "Akkustand Fahrzeug",
+            "caption": "Fahrzeug",
             "items": [
+                {
+                    "type": "Select",
+                    "name": "VehicleMode",
+                    "caption": "An der Wallbox lädt",
+                    "onChange": "IPS_RequestAction($id, 'FormVehicleMode', $VehicleMode);",
+                    "options": [
+                        {
+                            "caption": "Eigenes Auto",
+                            "value": 0
+                        },
+                        {
+                            "caption": "Gastladung (fremde Fahrzeuge)",
+                            "value": 1
+                        }
+                    ]
+                },
                 {
                     "type": "CheckBox",
                     "name": "EnableSoc",
@@ -133,18 +149,16 @@
                 },
                 {
                     "type": "Label",
-                    "caption": "Die Wallbox kennt den Akkustand nicht – er muss aus einer anderen Quelle kommen (z. B. Hersteller-Cloud des Autos). Die Akkugröße wird nur für „Fertig bis“ mit Ziel in Prozent benötigt."
-                },
-                {
-                    "type": "CheckBox",
-                    "name": "GuestAutoReset",
-                    "caption": "Gastladung nach dem Abstecken automatisch beenden (wieder eigenes Auto)"
+                    "caption": "Die Wallbox kennt den Akkustand nicht – er muss aus einer anderen Quelle kommen (z. B. Hersteller-Cloud des Autos). Die Akkugröße wird nur für „Fertig bis“ mit Ziel in Prozent benötigt.",
+                    "name": "SocHint"
                 },
                 {
                     "type": "Label",
-                    "caption": "Lädt ein fremdes Auto, in der Kachel oben auf „Eigenes Auto“ tippen (oder die Variable „Angestecktes Fahrzeug“ schalten): Dann werden Akkustand und eigenes Fahrzeugbild ausgeblendet und „Fertig bis“ rechnet ohne Prozent-Ziel. Energie und Kosten zählen weiter mit."
+                    "name": "GuestHint",
+                    "caption": "Gastladung: Es wird kein Akkustand und kein eigenes Fahrzeugbild angezeigt, „Fertig bis“ arbeitet nur mit dem kWh-Ziel. Die Einstellung gilt dauerhaft, auch nach dem Abstecken, bis sie hier wieder auf „Eigenes Auto“ gestellt wird. Energie und Kosten werden weiter gezählt."
                 }
-            ]
+            ],
+            "expanded": true
         },
         {
             "type": "ExpansionPanel",

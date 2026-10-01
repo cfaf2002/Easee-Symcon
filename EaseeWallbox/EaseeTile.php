@@ -88,14 +88,12 @@ trait EaseeTile
                             && (int) $this->GetValue('ScheduleMode') === 2) ? (int) $this->GetValue('TargetSoc') : null,
             'progress'  => $this->ChargeProgress(),
             'guest'     => $this->IsGuest(),
-            // Umschalter nur zeigen, wenn es etwas Fahrzeugbezogenes gibt
-            'guestUse'  => $this->SocEnabled() || $this->ReadPropertyString('CarImage') !== '',
             'updated'   => (int) $this->GetValue('LastUpdate') > 0 ? date('H:i', (int) $this->GetValue('LastUpdate')) : '-'
         ];
 
         if ($withBackground) {
             $data['car'] = [
-                'image'  => $this->ImageDataUrl('CarImage'),
+                'image'  => $this->IsGuest() ? '' : $this->ImageDataUrl('CarImage'),   // Gastladung: neutrales Auto
                 'mirror' => $this->ReadPropertyBoolean('CarMirror'),
                 'px'     => max(0, min(100, $this->ReadPropertyInteger('CarPortX'))),
                 'py'     => max(0, min(100, $this->ReadPropertyInteger('CarPortY')))
