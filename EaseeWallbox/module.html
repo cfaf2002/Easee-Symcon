@@ -118,7 +118,13 @@
     .ew-scene { width: 100%; max-height: min(30vh, 240px); margin-bottom: clamp(8px, 2vh, 20px); }
     .ew-scene .box { fill: rgba(127,127,127,.16); stroke: rgba(127,127,127,.45); stroke-width: 1.2; }
     .ew-scene .led { fill: var(--c); filter: drop-shadow(0 0 3px var(--c)); transition: fill .4s; }
-    .ew.charging .ew-scene .led { animation: blink 1.6s ease-in-out infinite; }
+    /* Beim Laden: Lichtstreifen füllt sich von unten nach oben und startet dann wieder unten */
+    .ew-scene .led-fill, .ew-scene .led-head { display: none; }
+    .ew.charging .ew-scene .led { opacity: .22; filter: none; }
+    .ew.charging .ew-scene .led-fill { display: block; fill: var(--c); filter: drop-shadow(0 0 3px var(--c));
+                                       transform-box: view-box; transform-origin: 21px 44px; animation: ledfill 2.4s ease-in infinite; }
+    .ew.charging .ew-scene .led-head { display: block; fill: #fff; filter: drop-shadow(0 0 2.5px var(--c));
+                                       animation: ledhead 2.4s ease-in infinite; }
     .ew-scene .cable { fill: none; stroke: rgba(127,127,127,.5); stroke-width: 2.6; stroke-linecap: round; }
     .ew-scene .flow { fill: none; stroke: var(--c); stroke-width: 2.6; stroke-linecap: round; stroke-dasharray: 2 9; opacity: 0; }
     .ew.charging .ew-scene .flow { opacity: 1; animation: flow .6s linear infinite; filter: drop-shadow(0 0 2px var(--c)); }
@@ -151,6 +157,10 @@
 
     @keyframes blink { 50% { opacity: .35; } }
     @keyframes flow { to { stroke-dashoffset: -11; } }
+    @keyframes ledfill { 0% { transform: scaleY(0); opacity: 1; } 80% { transform: scaleY(1); opacity: 1; }
+                         92% { transform: scaleY(1); opacity: 1; } 100% { transform: scaleY(1); opacity: 0; } }
+    @keyframes ledhead { 0% { transform: translateY(20px); opacity: .9; } 80% { transform: translateY(0); opacity: .9; }
+                         92%, 100% { transform: translateY(0); opacity: 0; } }
     @keyframes shine { 0% { transform: translateX(-14px); } 60%, 100% { transform: translateX(48px); } }
     @keyframes fill { 0% { transform: scaleX(.25); } 70%, 100% { transform: scaleX(1); } }
 
@@ -238,6 +248,8 @@
             <svg class="ew-scene" viewBox="0 0 145 100" aria-hidden="true">
                 <rect class="box" x="6" y="14" width="30" height="46" rx="9"/>
                 <rect class="led" x="19" y="22" width="4" height="22" rx="2"/>
+                <rect class="led-fill" x="19" y="22" width="4" height="22" rx="2"/>
+                <rect class="led-head" x="19.4" y="22.2" width="3.2" height="2.2" rx="1.1"/>
                 <g class="car-g">
                     <!-- eingebautes Auto-Symbol -->
                     <g id="carBuiltin">

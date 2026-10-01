@@ -257,6 +257,8 @@ Armin Frohwerk
 
 ## Versionen
 
+**1.2 (Build 2)** – Lichtstreifen der Wallbox füllt sich beim Laden von unten nach oben und startet dann wieder unten
+
 **1.2 (Build 1)** – neue Zählung; dieser Stand enthält alle bisherigen Erweiterungen:
 - Neues Akku-Symbol über dem Auto: Kapsel mit Farbverlauf (grün / gelb unter 50 % / rot unter 20 %), Blitz und Lichtreflex beim Laden; Akku-Balken in denselben Farben
 - „Ladung“ zeigt sofort Werte: Session-Energie wird zusätzlich aus Gesamtzähler und Ladeleistung mitgerechnet, weil die Easee-Cloud ihren Session-Zähler nur verzögert aktualisiert
