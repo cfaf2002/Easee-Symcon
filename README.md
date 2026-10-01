@@ -257,17 +257,14 @@ Armin Frohwerk
 
 ## Versionen
 
-- **1.12** – „Ladung“ zeigt sofort Werte: Session-Energie wird zusätzlich aus Gesamtzähler und Ladeleistung mitgerechnet, weil die Easee-Cloud ihren Session-Zähler nur verzögert aktualisiert
-- **1.11** – Akku im Auto-Symbol zeigt den Ladefortschritt in Prozent, Kabel endet am Ladeanschluss, eigenes Fahrzeugbild mit einstellbarem Ladeanschluss
-- **1.10** – Optionaler Akkustand des Fahrzeugs aus einer beliebigen Variable (Kachel, Dashboard, „Fertig bis“ mit Ziel in Prozent)
-- **1.9** – Kompakte Handy-Ansicht für flache Kacheln: Ring links, Ladung/Heute und Start/Pause rechts
-- **1.8** – Eigenes Hintergrundbild für die Kachel (mit Abdunkeln und Weichzeichnen)
-- **1.7** – Energie und Kosten pro Tag (Variablen „heute“, Archiv als Zähler für Tag/Woche/Monat/Jahr), laufender Kostenzähler, Strompreis wird im Instanz-Formular gepflegt, Zeile „Heute“ in Kachel und Dashboard
-- **1.6** – Fahrzeug-Grafik zurück in der Kachel (über der Werteliste, Farbe folgt dem Status)
-- **1.5** – Kachel neu gestaltet: ruhiges Layout mit Leistungsring und Werteliste, Linien-Icons, sauberes Verhalten bei allen Größen
-- **1.4** – Kachel: kein Überlappen mit dem Symcon-Kacheltitel, passende Schrift, wächst mit großen Kacheln mit, „max“ bei unbegrenztem Ladestrom
-- **1.3** – Neu gestaltete Kachel mit Leistungsring und animierter Wallbox-/Fahrzeug-Grafik
-- **1.2** – Ladestrom-Grenze, Zeitsteuerung (Zeitfenster / Fertig bis), Monats- und Jahresstatistik,
-  eigene Kachel für die Kachel-Visualisierung, Historie zählt nach einer Pause nur die neu geladene Energie
-- **1.1** – Fehler beim Anlegen der Instanz behoben (Archiv-Logging)
-- **1.0** – Erste Version als Modul (Ablösung der Skriptsammlung)
+**1.2 (Build 1)** – neue Zählung; dieser Stand enthält alle bisherigen Erweiterungen:
+- Neues Akku-Symbol über dem Auto: Kapsel mit Farbverlauf (grün / gelb unter 50 % / rot unter 20 %), Blitz und Lichtreflex beim Laden; Akku-Balken in denselben Farben
+- „Ladung“ zeigt sofort Werte: Session-Energie wird zusätzlich aus Gesamtzähler und Ladeleistung mitgerechnet, weil die Easee-Cloud ihren Session-Zähler nur verzögert aktualisiert
+- Akku im Auto-Symbol mit Ladefortschritt, Kabel endet am Ladeanschluss, eigenes Fahrzeugbild mit einstellbarem Ladeanschluss
+- Optionaler Akkustand des Fahrzeugs aus einer beliebigen Variable (Kachel, Dashboard, „Fertig bis“ mit Ziel in Prozent)
+- Kompakte Handy-Ansicht für flache Kacheln
+- Eigenes Hintergrundbild für die Kachel (mit Abdunkeln und Weichzeichnen)
+- Energie und Kosten pro Tag mit Archiv (Tag/Woche/Monat/Jahr), laufender Kostenzähler, Strompreis im Instanz-Formular
+- Kachel mit Leistungsring, Werteliste, Linien-Icons und animierter Wallbox-/Fahrzeug-Grafik
+- Ladestrom-Grenze, Zeitsteuerung (Zeitfenster / Fertig bis), Monats- und Jahresstatistik
+- Erste Version als Modul (Ablösung der Skriptsammlung)

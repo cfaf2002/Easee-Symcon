@@ -82,7 +82,10 @@
     .ew.has-soc .ew-row.soc { display: flex; }
     .ew-socbar { position: relative; flex: 1; min-width: 40px; max-width: 220px; height: 8px; margin-left: auto;
                  border-radius: 99px; background: var(--line); overflow: hidden; }
-    .ew-socbar span { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 99px; background: var(--c); transition: width .8s ease; }
+    .ew-socbar span { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 99px; transition: width .8s ease;
+                      background: linear-gradient(90deg, #1fa35a, #5ee08f); box-shadow: 0 0 8px rgba(94,224,143,.35); }
+    .ew-socbar span.mid { background: linear-gradient(90deg, #e6900f, #ffc861); box-shadow: 0 0 8px rgba(255,200,97,.35); }
+    .ew-socbar span.low { background: linear-gradient(90deg, #d63a2a, #ff7b6b); box-shadow: 0 0 8px rgba(255,123,107,.35); }
     .ew-socbar i { position: absolute; top: -2px; bottom: -2px; width: 2px; background: currentColor; opacity: .6; display: none; }
     .ew-socval { margin-left: 10px; min-width: 52px; }
 
@@ -122,24 +125,33 @@
     .ew-scene .car { fill: rgba(127,127,127,.2); stroke: rgba(127,127,127,.6); stroke-width: 1.3; }
     .ew-scene .glass { fill: rgba(127,127,127,.16); }
     .ew-scene .wheel { fill: rgba(30,30,30,.85); stroke: rgba(127,127,127,.65); stroke-width: 1.8; }
-    .ew-scene .batt-frame { fill: none; stroke: rgba(127,127,127,.7); stroke-width: 1.1; }
-    .ew-scene .batt-tip { fill: rgba(127,127,127,.7); }
-    .ew-scene .batt-bg { fill: rgba(0,0,0,.45); display: none; }
-    .ew-scene .batt { fill: var(--c); opacity: 0; transform-box: fill-box; transform-origin: left center; }
-    .ew.charging .ew-scene .batt { opacity: 1; animation: fill 2.6s ease-in-out infinite; }
-    .ew-scene .batt.real { opacity: 1; animation: none; transition: width .8s ease; }
-    .ew.charging .ew-scene .batt.real { animation: blink 1.8s ease-in-out infinite; }
-    .ew-scene .batt-txt { font-size: 6.4px; font-weight: 600; fill: currentColor; }
+    /* Akku-Kapsel: Glas-Hülle, Füllung mit Farbverlauf je nach Akkustand, Lichtreflex beim Laden */
+    #battG { --b1: #5ee08f; --b2: #1fa35a; }
+    #battG.mid { --b1: #ffc861; --b2: #e6900f; }
+    #battG.low { --b1: #ff7b6b; --b2: #d63a2a; }
+    #battG.none { display: none; }
+    .ew-scene .batt-shell { fill: rgba(16,18,22,.72); stroke: rgba(255,255,255,.22); stroke-width: .6; }
+    .ew-scene .batt-tip { fill: rgba(255,255,255,.35); }
+    .ew-scene .b1 { stop-color: var(--b1); }
+    .ew-scene .b2 { stop-color: var(--b2); }
+    .ew-scene .batt { opacity: .95; transition: width .8s ease; transform-box: fill-box; transform-origin: left center; }
+    #battG.anim .batt { animation: fill 2.6s ease-in-out infinite; }
+    .ew-scene .batt-gloss { fill: rgba(255,255,255,.16); }
+    .ew-scene .batt-shine { opacity: 0; }
+    .ew.charging .ew-scene .batt-shine { opacity: 1; animation: shine 2.2s ease-in-out infinite; }
+    .ew-scene .batt-bolt { fill: #fff; opacity: 0; transition: opacity .3s; }
+    .ew.charging .ew-scene .batt-bolt { opacity: 1; }
+    .ew-scene .batt-txt { font-size: 6.6px; font-weight: 700; fill: #fff; letter-spacing: .1px;
+                          paint-order: stroke; stroke: rgba(0,0,0,.35); stroke-width: .8px; }
+    .ew-scene .batt-glow { fill: var(--b1); opacity: 0; filter: blur(3px); }
+    .ew.charging .ew-scene .batt-glow { opacity: .35; animation: blink 2.2s ease-in-out infinite; }
     .ew-scene .plug { fill: rgba(127,127,127,.8); }
     .ew.charging .ew-scene .plug { fill: var(--c); filter: drop-shadow(0 0 2px var(--c)); }
-    .ew-scene.photo .batt-bg { display: block; }
-    .ew-scene.photo .batt-frame, .ew-scene.photo .batt-tip { stroke: rgba(255,255,255,.85); }
-    .ew-scene.photo .batt-tip { fill: rgba(255,255,255,.85); }
-    .ew-scene.photo .batt-txt { fill: #fff; }
     .ew.empty .ew-scene .car-g, .ew.empty .ew-scene .cable-g { opacity: .15; transition: opacity .4s; }
 
     @keyframes blink { 50% { opacity: .35; } }
     @keyframes flow { to { stroke-dashoffset: -11; } }
+    @keyframes shine { 0% { transform: translateX(-14px); } 60%, 100% { transform: translateX(48px); } }
     @keyframes fill { 0% { transform: scaleX(.25); } 70%, 100% { transform: scaleX(1); } }
 
     @keyframes pulse { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--c) 0%, transparent); } }
@@ -245,12 +257,28 @@
                     <circle class="plug" id="plug" cx="63" cy="66" r="2.2"/>
                 </g>
                 <!-- Akku mit Ladefortschritt -->
-                <g id="battG" transform="translate(88 64)">
-                    <rect class="batt-bg" x="-3" y="-3" width="46" height="15" rx="4"/>
-                    <rect class="batt-frame" x="0" y="0" width="26" height="9" rx="2"/>
-                    <rect class="batt-tip" x="26" y="3" width="1.8" height="3" rx=".6"/>
-                    <rect class="batt" id="batt" x="2" y="2" width="22" height="5" rx="1"/>
-                    <text class="batt-txt" id="battTxt" x="30" y="7.4"></text>
+                <g id="battG" class="none" transform="translate(80 31)">
+                    <defs>
+                        <linearGradient id="battGrad" x1="0" y1="0" x2="1" y2="0">
+                            <stop class="b2" offset="0"/><stop class="b1" offset="1"/>
+                        </linearGradient>
+                        <linearGradient id="battShine" x1="0" y1="0" x2="1" y2="0">
+                            <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+                            <stop offset=".5" stop-color="#fff" stop-opacity=".55"/>
+                            <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+                        </linearGradient>
+                        <clipPath id="battClip"><rect x="1.2" y="1.2" width="35.6" height="10.6" rx="5.3"/></clipPath>
+                    </defs>
+                    <rect class="batt-glow" id="battGlow" x="1" y="1" width="36" height="11" rx="5.5"/>
+                    <rect class="batt-shell" x="0" y="0" width="38" height="13" rx="6.5"/>
+                    <rect class="batt-tip" x="38.6" y="4.4" width="1.6" height="4.2" rx=".8"/>
+                    <g clip-path="url(#battClip)">
+                        <rect class="batt" id="batt" x="1.2" y="1.2" width="35.6" height="10.6" fill="url(#battGrad)"/>
+                        <rect class="batt-gloss" x="1.2" y="1.2" width="35.6" height="4"/>
+                        <rect class="batt-shine" x="0" y="0" width="12" height="13" fill="url(#battShine)"/>
+                    </g>
+                    <path class="batt-bolt" d="M7.4 2.6 L4.6 7.1 L6.8 7.1 L6 10.4 L9 5.8 L6.8 5.8 Z"/>
+                    <text class="batt-txt" id="battTxt" x="21" y="8.9" text-anchor="middle"></text>
                 </g>
             </svg>
 
@@ -333,6 +361,8 @@
         if (hasSoc) {
             $('socVal').textContent = state.soc + ' %';
             $('socFill').style.width = state.soc + '%';
+            $('socFill').classList.toggle('low', state.soc < 20);
+            $('socFill').classList.toggle('mid', state.soc >= 20 && state.soc < 50);
             const t = state.socTarget;
             $('socTarget').textContent = t ? '→ ' + t + ' %' : '';
             $('socMark').style.display = t ? 'block' : 'none';
@@ -342,10 +372,14 @@
         if (state.car) setCar(state.car);
 
         // Akku im Auto-Symbol: Fortschritt (Akkustand oder Ziel), sonst Animation beim Laden
-        const batt = $('batt');
-        const p = (state.progress === null || state.progress === undefined) ? null : state.progress;
-        batt.classList.toggle('real', p !== null);
-        batt.setAttribute('width', p !== null ? Math.max(0.8, 22 * p / 100).toFixed(1) : 22);
+        const p = (state.progress === null || state.progress === undefined) ? null : Math.max(0, Math.min(100, state.progress));
+        const charging = root.classList.contains('charging');
+        const bg = $('battG');
+        bg.classList.toggle('none', p === null && !charging);       // ohne Akkustand nur beim Laden zeigen
+        bg.classList.toggle('anim', p === null && charging);
+        bg.classList.toggle('low', p !== null && p < 20);
+        bg.classList.toggle('mid', p !== null && p >= 20 && p < 50);
+        $('batt').setAttribute('width', p !== null ? Math.max(1, 35.6 * p / 100).toFixed(1) : 35.6);
         $('battTxt').textContent = p !== null ? p + ' %' : '';
 
         $('sessionE').textContent = state.sessionE;
@@ -386,7 +420,7 @@
             img.style.display = 'none';
             $('carBuiltin').style.display = '';
             scene.classList.remove('photo');
-            placeScene(63, 66, 88, 64);
+            placeScene(63, 66, 80, 31);
             return;
         }
 
@@ -407,7 +441,7 @@
 
             // Ladeanschluss in Prozent des angezeigten Bildes
             const px = x + w * car.px / 100, py = y + h * car.py / 100;
-            placeScene(px, py, x + w / 2 - 20, Math.min(91, y + h + 1));
+            placeScene(px, py, x + w / 2 - 20, Math.max(3, y + h * 0.12 - 15));
         };
         probe.src = car.image;
     }
