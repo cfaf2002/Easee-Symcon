@@ -624,7 +624,8 @@ class EaseeWallbox extends IPSModule
         if ($old > 0 && $old !== $new) {
             $this->UnregisterMessage($old, VM_UPDATE);
         }
-        if ($new > 0 && $old !== $new) {
+        // Anmeldungen überleben keinen Neustart von Symcon -> immer neu anmelden
+        if ($new > 0) {
             $this->RegisterMessage($new, VM_UPDATE);
         }
         $this->WriteAttributeInteger('SocWatched', $new);

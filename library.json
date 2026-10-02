@@ -4,9 +4,9 @@
     "name": "Easee",
     "url": "https://github.com/cfaf2002/Easee-Symcon",
     "compatibility": {
-        "version": "7.0"
+        "version": "1.2"
     },
     "version": "1.2",
-    "build": 4,
+    "build": 5,
     "date": 1790640000
 }

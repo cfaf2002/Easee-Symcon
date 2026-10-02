@@ -269,6 +269,8 @@ In der Kachel selbst lässt sich das bewusst nicht umschalten.
 
 ## Versionen
 
+**1.2 (Build 5)** – Akkustand aktualisiert sich nach einem Neustart von Symcon wieder (Anmeldung an die Akkustand-Variable wird jedes Mal erneuert)
+
 **1.2 (Build 4)** – „Eigenes Auto“ oder „Gastladung“ wird fest in der Instanz eingestellt (kein Umschalten in der Kachel, kein automatisches Zurücksetzen); bei Gastladung kein Akkustand und neutrales Auto
 
 **1.2 (Build 2)** – Lichtstreifen der Wallbox füllt sich beim Laden von unten nach oben und startet dann wieder unten
