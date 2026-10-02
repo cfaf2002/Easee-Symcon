@@ -168,8 +168,13 @@
 
     /* ---------- Schmale / kleine Kacheln ---------- */
     @media (max-width: 640px) {
-        .ew-main { grid-template-columns: 1fr; align-content: center; gap: 12px; }
-        .ew-ring { width: min(62vw, 34vh, 260px); }
+        /* Schmal und hoch (Tablet hochkant): Ring nimmt nur den Platz, den die Werteliste übrig lässt */
+        .ew-main { display: flex; flex-direction: column; justify-content: center; gap: 12px; height: 100%; }
+        .ew-gauge { flex: 1 1 0; min-height: 120px; max-height: 280px; justify-content: center; }
+        .ew-ring { width: auto; height: 100%; max-width: 100%; }
+        .ew-kw { font-size: clamp(24px, 7vmin, 44px); }
+        .ew-panel { flex: none; width: 100%; align-self: stretch; }
+        .ew-scene { max-height: min(22vh, 190px); }
     }
     @media (max-width: 640px) and (max-height: 760px) {
         .ew-scene { display: none; }

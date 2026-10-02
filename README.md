@@ -269,6 +269,8 @@ In der Kachel selbst lässt sich das bewusst nicht umschalten.
 
 ## Versionen
 
+**1.2 (Build 6)** – Kachel auf schmalen, hohen Kacheln (z. B. Tablet hochkant): Leistungsring richtet sich nach dem freien Platz und rutscht nicht mehr unter Titel und Werteliste
+
 **1.2 (Build 5)** – Akkustand aktualisiert sich nach einem Neustart von Symcon wieder (Anmeldung an die Akkustand-Variable wird jedes Mal erneuert)
 
 **1.2 (Build 4)** – „Eigenes Auto“ oder „Gastladung“ wird fest in der Instanz eingestellt (kein Umschalten in der Kachel, kein automatisches Zurücksetzen); bei Gastladung kein Akkustand und neutrales Auto
