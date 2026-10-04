@@ -200,6 +200,25 @@
             "caption": "Kachel",
             "items": [
                 {
+                    "type": "Select",
+                    "name": "TileTheme",
+                    "caption": "Farbschema der Kachel",
+                    "options": [
+                        {
+                            "caption": "Symcon-Design (Farben der Visualisierung)",
+                            "value": 0
+                        },
+                        {
+                            "caption": "Dunkel",
+                            "value": 1
+                        },
+                        {
+                            "caption": "Hell",
+                            "value": 2
+                        }
+                    ]
+                },
+                {
                     "type": "SelectFile",
                     "name": "TileBackground",
                     "caption": "Hintergrundbild",
@@ -223,7 +242,7 @@
                 },
                 {
                     "type": "Label",
-                    "caption": "Tipp: Querformat, am besten unter 500 KB (z. B. 1600 × 1000 Pixel als JPG). Zum Entfernen das Bild im Feld löschen und übernehmen."
+                    "caption": "Tipp: Querformat. Große Fotos werden automatisch auf 1600 Pixel verkleinert, damit die Kachel schnell lädt. Zum Entfernen das Bild im Feld löschen und übernehmen."
                 },
                 {
                     "type": "Label",
@@ -263,7 +282,7 @@
                 },
                 {
                     "type": "Label",
-                    "caption": "Am besten ein freigestelltes PNG in Seitenansicht (transparenter Hintergrund, unter 300 KB). Die Position des Ladeanschlusses bezieht sich auf das angezeigte (ggf. gespiegelte) Bild – nach dem Übernehmen sieht man das Ergebnis sofort in der Kachel."
+                    "caption": "Am besten ein freigestelltes PNG in Seitenansicht (transparenter Hintergrund; wird automatisch auf 800 Pixel verkleinert). Die Position des Ladeanschlusses bezieht sich auf das angezeigte (ggf. gespiegelte) Bild – nach dem Übernehmen sieht man das Ergebnis sofort in der Kachel."
                 }
             ]
         }

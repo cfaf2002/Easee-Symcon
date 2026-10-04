@@ -1,10 +1,25 @@
+<!-- Copyright (c) 2026 Armin Frohwerk · SPDX-License-Identifier: MIT -->
 <style>
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; }
     body {
         font-family: 'Poppins', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
         -webkit-font-smoothing: antialiased;
+        /* Farbschema „Symcon-Design“: Schrift- und Akzentfarbe der gewählten Visualisierung */
+        color: var(--content-color, inherit);
+        --accent: var(--accent-color, #2e86de);
     }
+    /* Feste Farbschemas (Eigenschaft „Farbschema“ der Instanz) */
+    body.theme-dark  { color: #eef1f4; --accent: #2e86de; background: linear-gradient(180deg, #23262b, #1a1c20); }
+    body.theme-light { color: #1f2a33; --accent: #1f6fb8; background: linear-gradient(180deg, #f6f8fa, #e9eef2); }
+    body.theme-light .ew { --line: rgba(31,42,51,.14); --muted: rgba(31,42,51,.62); }
+    .ew-step:focus-visible, .ew-action:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+    /* Bewegung sparen: auf Wunsch des Systems und solange die Kachel nicht sichtbar ist */
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+    body.paused *, body.paused *::before, body.paused *::after { animation-play-state: paused !important; }
 
     /* Hintergrundbild (optional) */
     .ew-bg { position: fixed; inset: 0; z-index: -2; background: center / cover no-repeat; display: none; }
@@ -97,6 +112,9 @@
     .ew-step { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line); background: transparent;
                color: inherit; font-size: 17px; line-height: 1; cursor: pointer; }
     .ew-step:hover:not(:disabled) { background: rgba(127,127,127,.12); }
+    /* Akzentfarbe des Designs für Bedienelemente ohne Statusbedeutung */
+    .ew-step:not(:disabled) { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+    body.has-bg .ew-step:not(:disabled) { color: #fff; border-color: rgba(255,255,255,.35); }
     .ew-step:disabled { opacity: .3; cursor: default; }
     .ew-limit { min-width: 58px; text-align: center; font-weight: 600; font-size: clamp(14px, 2.1vmin, 18px); font-variant-numeric: tabular-nums; }
 
@@ -349,6 +367,19 @@
     let state = null;
     const $ = (id) => document.getElementById(id);
 
+    /** Wert mit kleinem Zusatz setzen – nur als Text, nie als HTML */
+    function setValue(el, main, small) {
+        el.textContent = main;
+        if (small) {
+            const s = document.createElement('small');
+            s.textContent = small;
+            el.appendChild(s);
+        }
+    }
+
+    // Animationen anhalten, solange die Kachel nicht zu sehen ist
+    document.addEventListener('visibilitychange', () => document.body.classList.toggle('paused', document.hidden));
+
     function handleMessage(data) {
         state = JSON.parse(data);
 
@@ -362,8 +393,13 @@
             $('shade').style.setProperty('--dim', state.bg.dim);
         }
 
+        if (state.theme) {
+            document.body.classList.toggle('theme-dark', state.theme === 'dark');
+            document.body.classList.toggle('theme-light', state.theme === 'light');
+        }
+
         const root = $('root');
-        root.style.setProperty('--c', state.color);
+        root.style.setProperty('--c', /^#[0-9a-f]{6}$/i.test(state.color) ? state.color : '#95a5a6');
         root.classList.toggle('charging', state.charging);
         root.classList.toggle('empty', !state.connected);
 
@@ -407,7 +443,7 @@
         $('monthC').textContent = state.monthC + ' €';
 
         if (state.phases > 0) {
-            $('conn').innerHTML = state.phases + '-phasig<small>' + state.current + ' A</small>';
+            setValue($('conn'), state.phases + '-phasig', state.current + ' A');
         } else {
             $('conn').textContent = state.connected ? (state.guest ? 'Gastfahrzeug verbunden' : 'Fahrzeug verbunden') : 'Kein Fahrzeug';
         }

@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * Copyright (c) 2026 Armin Frohwerk
+ * SPDX-License-Identifier: MIT
+ */
+
 declare(strict_types=1);
 
 /**
@@ -26,14 +31,19 @@ trait EaseeSchedule
     {
         $keep = $this->ReadPropertyBoolean('EnableSchedule');
 
-        $this->MaintainVariable('ScheduleMode', 'Zeitsteuerung', VARIABLETYPE_INTEGER, 'EaseeWB.Schedule', 60, $keep);
-        $this->MaintainVariable('ScheduleStart', 'Zeitfenster Beginn', VARIABLETYPE_INTEGER, '~UnixTimestampTime', 61, $keep);
-        $this->MaintainVariable('ScheduleEnd', 'Zeitfenster Ende', VARIABLETYPE_INTEGER, '~UnixTimestampTime', 62, $keep);
-        $this->MaintainVariable('ReadyBy', 'Fertig bis', VARIABLETYPE_INTEGER, '~UnixTimestampTime', 63, $keep);
-        $this->MaintainVariable('TargetEnergy', 'Ziel-Energie', VARIABLETYPE_FLOAT, 'EaseeWB.Target', 64, $keep);
-        $this->MaintainVariable('TargetSoc', 'Ziel-Akkustand', VARIABLETYPE_INTEGER, 'EaseeWB.Percent', 64,
+        $time = self::PDateTime(0, 1);
+        $this->MaintainVariable('ScheduleMode', 'Zeitsteuerung', VARIABLETYPE_INTEGER, self::PEnum([
+            [0, 'Aus', 'power-off', -1],
+            [1, 'Zeitfenster', 'clock', 0x3498DB],
+            [2, 'Fertig bis', 'flag-checkered', 0x2ECC71]
+        ], 'clock', true), 60, $keep);
+        $this->MaintainVariable('ScheduleStart', 'Zeitfenster Beginn', VARIABLETYPE_INTEGER, $time, 61, $keep);
+        $this->MaintainVariable('ScheduleEnd', 'Zeitfenster Ende', VARIABLETYPE_INTEGER, $time, 62, $keep);
+        $this->MaintainVariable('ReadyBy', 'Fertig bis', VARIABLETYPE_INTEGER, $time, 63, $keep);
+        $this->MaintainVariable('TargetEnergy', 'Ziel-Energie', VARIABLETYPE_FLOAT, self::PSlider(1, 100, 1, ' kWh', 0, 'battery-bolt'), 64, $keep);
+        $this->MaintainVariable('TargetSoc', 'Ziel-Akkustand', VARIABLETYPE_INTEGER, self::PSlider(10, 100, 5, ' %', 0, 'battery-full'), 64,
             $keep && $this->ReadPropertyBoolean('EnableSoc') && !$this->IsGuest());
-        $this->MaintainVariable('ScheduleInfo', 'Zeitsteuerung Info', VARIABLETYPE_STRING, '', 65, $keep);
+        $this->MaintainVariable('ScheduleInfo', 'Zeitsteuerung Info', VARIABLETYPE_STRING, self::PValue('', 0, 'circle-info'), 65, $keep);
 
         if (!$keep) {
             return;
@@ -82,7 +92,10 @@ trait EaseeSchedule
             return false;
         }
 
-        $this->SetValue($ident, $value);
+        if (@$this->GetIDForIdent($ident) === false) {
+            throw new InvalidArgumentException('Zeitsteuerung ist nicht aktiviert');
+        }
+        $this->SetValue($ident, self::ValidScheduleValue($ident, $value));
 
         // Neue Vorgaben -> Plan neu berechnen
         $this->WriteAttributeInteger('ScheduleWanted', -1);
@@ -99,6 +112,28 @@ trait EaseeSchedule
         $this->EvaluateSchedule();
 
         return true;
+    }
+
+    /** Werte aus Visualisierung/Skript prüfen und in den gültigen Bereich bringen. */
+    private static function ValidScheduleValue(string $ident, mixed $value): int|float
+    {
+        if (!is_int($value) && !is_float($value) && !(is_string($value) && is_numeric($value))) {
+            throw new InvalidArgumentException('Ungültiger Wert für ' . $ident);
+        }
+        switch ($ident) {
+            case 'ScheduleMode':
+                $mode = (int) $value;
+                if ($mode < 0 || $mode > 2) {
+                    throw new InvalidArgumentException('Ungültiger Modus: ' . $mode);
+                }
+                return $mode;
+            case 'TargetEnergy':
+                return max(1.0, min(200.0, round((float) $value, 1)));
+            case 'TargetSoc':
+                return max(10, min(100, (int) $value));
+            default:            // Uhrzeiten (Zeitstempel)
+                return max(0, (int) $value);
+        }
     }
 
     /** Manuelles Schalten merken - Zeitsteuerung pausiert bis zum Abstecken. */

@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * Copyright (c) 2026 Armin Frohwerk
+ * SPDX-License-Identifier: MIT
+ */
+
 declare(strict_types=1);
 
 /**
@@ -8,20 +13,32 @@ declare(strict_types=1);
  */
 trait EaseeTile
 {
+    /** JSON so einbetten, dass kein Wert das Skript der Kachel beenden kann (z. B. "</script>"). */
+    private const TILE_JSON = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE
+        | JSON_INVALID_UTF8_SUBSTITUTE;   // kaputte Zeichen aus Fremddaten ersetzen statt Kachel abbrechen
+
     public function GetVisualizationTile(): string
     {
-        $html = file_get_contents(__DIR__ . '/module.html');
+        $html = (string) file_get_contents(__DIR__ . '/module.html');
+        $data = json_encode($this->TileData(true), self::TILE_JSON);
+        $this->SetBuffer('TileHash', '');
 
         // Startwerte direkt mitgeben, damit die Kachel sofort gefüllt ist
-        return $html . '<script>handleMessage(' . json_encode(json_encode($this->TileData(true))) . ');</script>';
+        return $html . '<script>handleMessage(' . json_encode($data, self::TILE_JSON) . ');</script>';
     }
 
-    /** @param bool $withBackground Bild mitschicken (nur beim Laden/nach Änderung - kann groß sein) */
+    /** @param bool $withBackground Bilder mitschicken (nur beim Laden/nach Änderung - können groß sein) */
     private function PushTile(bool $withBackground = false): void
     {
-        if (method_exists($this, 'UpdateVisualizationValue')) {
-            $this->UpdateVisualizationValue(json_encode($this->TileData($withBackground)));
+        $json = json_encode($this->TileData($withBackground), self::TILE_JSON);
+
+        // Nur senden, wenn sich etwas geändert hat (spart Last bei vielen offenen Kacheln)
+        $hash = md5($json);
+        if (!$withBackground && $this->GetBuffer('TileHash') === $hash) {
+            return;
         }
+        $this->SetBuffer('TileHash', $hash);
+        $this->UpdateVisualizationValue($json);
     }
 
     /** Hintergrundbild als data-URL (leer = kein Bild). */
@@ -30,7 +47,11 @@ trait EaseeTile
         return $this->ImageDataUrl('TileBackground');
     }
 
-    /** Bild aus einer Eigenschaft (SelectFile, base64) als data-URL. */
+    /**
+     * Bild aus einer Eigenschaft (SelectFile, base64) als data-URL.
+     * Wird einmal verkleinert und zwischengespeichert: große Fotos würden
+     * sonst bei jedem Öffnen der Kachel mehrere MB übertragen.
+     */
     private function ImageDataUrl(string $property): string
     {
         $base64 = trim($this->ReadPropertyString($property));
@@ -38,18 +59,62 @@ trait EaseeTile
             return '';
         }
 
-        $head = base64_decode(substr($base64, 0, 24), true) ?: '';
-        if (strncmp($head, "\x89PNG", 4) === 0) {
-            $mime = 'image/png';
-        } elseif (strncmp($head, 'RIFF', 4) === 0 && substr($head, 8, 4) === 'WEBP') {
-            $mime = 'image/webp';
-        } elseif (strncmp($head, 'GIF8', 4) === 0) {
-            $mime = 'image/gif';
-        } else {
-            $mime = 'image/jpeg';
+        $key = $property . ':' . md5($base64);
+        $cache = json_decode($this->ReadAttributeString('ImageCache'), true) ?: [];
+        if (isset($cache[$key])) {
+            return $cache[$key];
         }
 
-        return 'data:' . $mime . ';base64,' . $base64;
+        $raw = base64_decode($base64, true);
+        $url = $raw === false ? '' : self::ShrinkImage($raw, $property === 'TileBackground' ? 1600 : 800);
+
+        // Nur das aktuelle Bild je Eigenschaft behalten
+        foreach (array_keys($cache) as $k) {
+            if (str_starts_with($k, $property . ':')) {
+                unset($cache[$k]);
+            }
+        }
+        $cache[$key] = $url;
+        $this->WriteAttributeString('ImageCache', json_encode($cache));
+        return $url;
+    }
+
+    /** Erlaubt nur echte Bilder (PNG, JPEG, WebP, GIF) und verkleinert sie auf $max Pixel. */
+    private static function ShrinkImage(string $raw, int $max): string
+    {
+        if (strncmp($raw, "\x89PNG", 4) === 0) {
+            $mime = 'image/png';
+        } elseif (strncmp($raw, "\xFF\xD8", 2) === 0) {
+            $mime = 'image/jpeg';
+        } elseif (strncmp($raw, 'RIFF', 4) === 0 && substr($raw, 8, 4) === 'WEBP') {
+            $mime = 'image/webp';
+        } elseif (strncmp($raw, 'GIF8', 4) === 0) {
+            $mime = 'image/gif';
+        } else {
+            return '';                        // kein Bild -> nicht einbetten
+        }
+
+        if (function_exists('imagecreatefromstring') && ($img = @imagecreatefromstring($raw)) !== false) {
+            $w = imagesx($img);
+            $h = imagesy($img);
+            if (max($w, $h) > $max) {
+                $f = $max / max($w, $h);
+                $out = imagecreatetruecolor(max(1, (int) round($w * $f)), max(1, (int) round($h * $f)));
+                $png = $mime !== 'image/jpeg';
+                if ($png) {               // Transparenz (z. B. freigestelltes Auto) erhalten
+                    imagealphablending($out, false);
+                    imagesavealpha($out, true);
+                    imagefill($out, 0, 0, imagecolorallocatealpha($out, 0, 0, 0, 127));
+                }
+                imagecopyresampled($out, $img, 0, 0, 0, 0, imagesx($out), imagesy($out), $w, $h);
+                ob_start();
+                $png ? imagepng($out, null, 9) : imagejpeg($out, null, 82);
+                $raw = (string) ob_get_clean();
+                $mime = $png ? 'image/png' : 'image/jpeg';
+            }
+        }
+
+        return 'data:' . $mime . ';base64,' . base64_encode($raw);
     }
 
     private function TileData(bool $withBackground = false): array
@@ -64,7 +129,7 @@ trait EaseeTile
 
         $data = [
             'name'      => $this->ReadAttributeString('ChargerName') ?: 'Easee Wallbox',
-            'status'    => GetValueFormatted($this->GetIDForIdent('Status')),
+            'status'    => self::StatusText($opMode),
             'color'     => self::StatusColor($opMode, (int) $this->GetValue('ErrorCode')),
             'power'     => self::Num($power),
             'percent'   => round(min(100, max(0, $power / $maxKW * 100)), 1),
@@ -87,6 +152,7 @@ trait EaseeTile
             'socTarget' => ($this->CurrentSoc() !== null && @$this->GetIDForIdent('TargetSoc') !== false
                             && (int) $this->GetValue('ScheduleMode') === 2) ? (int) $this->GetValue('TargetSoc') : null,
             'progress'  => $this->ChargeProgress(),
+            'theme'     => ['symcon', 'dark', 'light'][$this->ReadPropertyInteger('TileTheme')] ?? 'symcon',
             'guest'     => $this->IsGuest(),
             'updated'   => (int) $this->GetValue('LastUpdate') > 0 ? date('H:i', (int) $this->GetValue('LastUpdate')) : '-'
         ];

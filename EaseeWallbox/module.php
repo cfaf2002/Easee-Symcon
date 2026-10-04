@@ -1,5 +1,12 @@
 <?php
 
+/**
+ * Easee Wallbox für IP-Symcon
+ *
+ * Copyright (c) 2026 Armin Frohwerk
+ * SPDX-License-Identifier: MIT
+ */
+
 declare(strict_types=1);
 
 require_once __DIR__ . '/EaseeDashboard.php';
@@ -15,7 +22,7 @@ require_once __DIR__ . '/EaseeTile.php';
  *
  * Autor: Armin Frohwerk
  */
-class EaseeWallbox extends IPSModule
+class EaseeWallbox extends IPSModuleStrict
 {
     use EaseeDashboard;
     use EaseeSchedule;
@@ -44,6 +51,20 @@ class EaseeWallbox extends IPSModule
     private const OBS_WIFI_RSSI = 132;
     private const OBS_CLOUD = 250;
 
+    /** Betriebszustände der Wallbox: [Wert, Text, Symbol, Farbe] */
+    private const STATUS_OPTIONS = [
+        [0, 'Offline', 'cloud-slash', 0x555555],
+        [1, 'Kein Fahrzeug verbunden', 'plug', 0x95A5A6],
+        [2, 'Wartet auf Start', 'hourglass-half', 0xF1C40F],
+        [3, 'Lädt', 'bolt', 0x2ECC71],
+        [4, 'Ladung beendet', 'circle-check', 0x3498DB],
+        [5, 'Fehler', 'triangle-exclamation', 0xE74C3C],
+        [6, 'Bereit zum Laden', 'plug-circle-check', 0x3498DB],
+        [7, 'Wartet auf Freigabe', 'hand', 0xE67E22],
+        [8, 'Abmeldung läuft', 'right-from-bracket', 0x7F8C8D]
+    ];
+    private const SCHEDULE_TEXT = [0 => 'Aus', 1 => 'Zeitfenster', 2 => 'Fertig bis'];
+
     private const ARCHIVE_GUID = '{43192F0B-135B-4CE7-A0A7-1475603F3060}';
     private const HISTORY_MAX = 30;
     private const STATS_MONTHS = 36;
@@ -56,7 +77,7 @@ class EaseeWallbox extends IPSModule
     // Symcon-Lebenszyklus
     // =================================================================
 
-    public function Create()
+    public function Create(): void
     {
         parent::Create();
 
@@ -87,6 +108,7 @@ class EaseeWallbox extends IPSModule
         $this->RegisterPropertyFloat('BatteryCapacity', 15.0);
         $this->RegisterPropertyBoolean('EnableSchedule', false);
         $this->RegisterPropertyInteger('ScheduleBuffer', 30);
+        $this->RegisterPropertyInteger('TileTheme', 0);         // 0 = Symcon-Design, 1 = Dunkel, 2 = Hell
 
         // Interne Daten
         $this->RegisterAttributeString('AccessToken', '');
@@ -109,6 +131,7 @@ class EaseeWallbox extends IPSModule
         $this->RegisterAttributeInteger('SocWatched', 0);
         $this->RegisterAttributeInteger('PriceMigrated', 0);
         $this->RegisterAttributeInteger('LastPhases', 3);
+        $this->RegisterAttributeString('ImageCache', '{}');     // verkleinerte Bilder für die Kachel
         $this->RegisterScheduleAttributes();
 
         $this->RegisterTimer('UpdateTimer', 0, 'EASEE_Update($_IPS[\'TARGET\']);');
@@ -119,13 +142,12 @@ class EaseeWallbox extends IPSModule
         $this->SetVisualizationType(1);
     }
 
-    public function ApplyChanges()
+    public function ApplyChanges(): void
     {
         parent::ApplyChanges();
 
         $this->RegisterMessage(0, IPS_KERNELSTARTED);
 
-        $this->CreateProfiles();
         $this->CreateVariables();
         $this->CreateScheduleVariables();
         $this->SetupSoc();
@@ -200,7 +222,7 @@ class EaseeWallbox extends IPSModule
         $this->ScheduleQuickRefresh(3);
     }
 
-    public function MessageSink($TimeStamp, $SenderID, $Message, $Data)
+    public function MessageSink(int $TimeStamp, int $SenderID, int $Message, array $Data): void
     {
         if ($Message === IPS_KERNELSTARTED) {
             $this->ApplyChanges();
@@ -213,14 +235,16 @@ class EaseeWallbox extends IPSModule
         }
     }
 
-    public function RequestAction($Ident, $Value)
+    public function RequestAction(string $Ident, mixed $Value): void
     {
         switch ($Ident) {
             case 'ChargingActive':
+                self::RequireType($Value, ['boolean', 'integer']);
                 $Value ? $this->StartCharging() : $this->StopCharging();
                 break;
 
             case 'ChargeLimit':
+                self::RequireType($Value, ['integer', 'double']);
                 $this->SetChargeLimit((int) $Value);
                 break;
 
@@ -233,6 +257,7 @@ class EaseeWallbox extends IPSModule
                 break;
 
             case 'CableLockPermanent':
+                self::RequireType($Value, ['boolean', 'integer']);
                 $this->SetCableLockPermanent((bool) $Value);
                 break;
 
@@ -247,7 +272,7 @@ class EaseeWallbox extends IPSModule
 
             default:
                 if (!$this->HandleScheduleAction($Ident, $Value)) {
-                    throw new Exception('Unbekannte Aktion: ' . $Ident);
+                    throw new InvalidArgumentException('Unbekannte Aktion: ' . $Ident);
                 }
         }
     }
@@ -616,7 +641,8 @@ class EaseeWallbox extends IPSModule
     private function SetupSoc(): void
     {
         $enabled = $this->ReadPropertyBoolean('EnableSoc') && !$this->IsGuest();
-        $this->MaintainVariable('SoC', 'Akkustand Fahrzeug', VARIABLETYPE_INTEGER, 'EaseeWB.Percent', 5, $enabled);
+        $this->MaintainVariable('SoC', 'Akkustand Fahrzeug', VARIABLETYPE_INTEGER,
+            ['PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'TEMPLATE' => VARIABLE_TEMPLATE_VALUE_PRESENTATION_BATTERY], 5, $enabled);
 
         $old = $this->ReadAttributeInteger('SocWatched');
         $new = $this->SocEnabled() ? $this->ReadPropertyInteger('SocVariable') : 0;
@@ -651,7 +677,7 @@ class EaseeWallbox extends IPSModule
     }
 
     /** Formular: Felder zum eigenen Auto nur bei "Eigenes Auto" zeigen. */
-    public function GetConfigurationForm()
+    public function GetConfigurationForm(): string
     {
         $form = json_decode(file_get_contents(__DIR__ . '/form.json'), true);
         $own = !$this->IsGuest();
@@ -1031,7 +1057,12 @@ class EaseeWallbox extends IPSModule
             CURLOPT_CUSTOMREQUEST  => $method,
             CURLOPT_HTTPHEADER     => $headers,
             CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_TIMEOUT        => 30
+            CURLOPT_TIMEOUT        => 30,
+            // Nur verschlüsselt und mit geprüftem Zertifikat
+            CURLOPT_PROTOCOLS      => CURLPROTO_HTTPS,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            CURLOPT_ENCODING       => ''      // gzip annehmen: weniger Daten, schneller
         ]);
         if ($body !== null) {
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
@@ -1040,7 +1071,6 @@ class EaseeWallbox extends IPSModule
         $raw = curl_exec($ch);
         $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
-        curl_close($ch);
 
         // Passwort/Token nicht im Debug anzeigen
         $this->SendDebug($method, preg_replace('#\?.*$#', '', $url) . ' -> HTTP ' . $code, 0);
@@ -1059,6 +1089,18 @@ class EaseeWallbox extends IPSModule
     // =================================================================
     // Benachrichtigung, Archiv, Profile, Variablen
     // =================================================================
+
+    /**
+     * Variable nur schreiben, wenn sich der Wert wirklich ändert.
+     * Spart bei jedem Abruf Dutzende Schreibvorgänge samt Ereignissen und Nachrichten.
+     */
+    protected function SetValue(string $Ident, mixed $Value): bool
+    {
+        if (@$this->GetIDForIdent($Ident) !== false && $this->GetValue($Ident) === $Value) {
+            return true;
+        }
+        return parent::SetValue($Ident, $Value);
+    }
 
     private function Notify(string $title, string $text): void
     {
@@ -1105,109 +1147,141 @@ class EaseeWallbox extends IPSModule
         }
     }
 
-    private function CreateProfiles(): void
-    {
-        $this->RegisterProfile('EaseeWB.kW', VARIABLETYPE_FLOAT, ' kW', 2, 'Electricity');
-        $this->RegisterProfile('EaseeWB.kWh', VARIABLETYPE_FLOAT, ' kWh', 2, 'Electricity');
-        $this->RegisterProfile('EaseeWB.EUR', VARIABLETYPE_FLOAT, ' €', 2, 'Euro');
-        $this->RegisterProfile('EaseeWB.Price', VARIABLETYPE_FLOAT, ' €/kWh', 4, 'Euro', 0, 2, 0.01);
-        $this->RegisterProfile('EaseeWB.dBm', VARIABLETYPE_INTEGER, ' dBm', 0, 'Intensity');
-        $this->RegisterProfile('EaseeWB.Percent', VARIABLETYPE_INTEGER, ' %', 0, 'Battery', 0, 100, 1);
-        $this->RegisterProfile('EaseeWB.Ampere', VARIABLETYPE_INTEGER, ' A', 0, 'Electricity', 6, $this->MaxAmpere(), 1);
-        $this->RegisterProfile('EaseeWB.Target', VARIABLETYPE_FLOAT, ' kWh', 0, 'Battery', 1, 100, 1);
-
-        $this->RegisterProfile('EaseeWB.OpMode', VARIABLETYPE_INTEGER, '', 0, 'Car', 0, 0, 0, [
-            [0, 'Offline', '', 0x555555],
-            [1, 'Kein Fahrzeug verbunden', '', 0x95A5A6],
-            [2, 'Wartet auf Start', '', 0xF1C40F],
-            [3, 'Lädt', '', 0x2ECC71],
-            [4, 'Ladung beendet', '', 0x3498DB],
-            [5, 'Fehler', '', 0xE74C3C],
-            [6, 'Bereit zum Laden', '', 0x3498DB],
-            [7, 'Wartet auf Freigabe', '', 0xE67E22],
-            [8, 'Abmeldung läuft', '', 0x7F8C8D]
-        ]);
-
-        $this->RegisterProfile('EaseeWB.Schedule', VARIABLETYPE_INTEGER, '', 0, 'Clock', 0, 2, 0, [
-            [0, 'Aus', '', -1],
-            [1, 'Zeitfenster', '', 0x3498DB],
-            [2, 'Fertig bis', '', 0x2ECC71]
-        ]);
-    }
-
-    private function RegisterProfile(
-        string $name,
-        int $type,
-        string $suffix,
-        int $digits,
-        string $icon,
-        float $min = 0,
-        float $max = 0,
-        float $step = 0,
-        array $associations = []
-    ): void {
-        if (!IPS_VariableProfileExists($name)) {
-            IPS_CreateVariableProfile($name, $type);
-        }
-        IPS_SetVariableProfileText($name, '', $suffix);
-        IPS_SetVariableProfileIcon($name, $icon);
-        if ($type === VARIABLETYPE_FLOAT) {
-            IPS_SetVariableProfileDigits($name, $digits);
-        }
-        IPS_SetVariableProfileValues($name, $min, $max, $step);
-        foreach ($associations as [$value, $text, $aIcon, $color]) {
-            IPS_SetVariableProfileAssociation($name, $value, $text, $aIcon, $color);
-        }
-    }
-
     private function CreateVariables(): void
     {
-        $this->RegisterVariableInteger('Status', 'Status', 'EaseeWB.OpMode', 1);
-        $this->RegisterVariableBoolean('ChargingActive', 'Laden', '~Switch', 2);
-        $this->RegisterVariableFloat('Power', 'Ladeleistung', 'EaseeWB.kW', 3);
-        $this->RegisterVariableFloat('Current', 'Ladestrom', '~Ampere', 4);
-        $this->RegisterVariableInteger('ChargeLimit', 'Ladestrom-Grenze', 'EaseeWB.Ampere', 5);
-        $this->RegisterVariableInteger('PhaseCount', 'Phasen', '', 6);
-        $this->RegisterVariableFloat('CurrentL1', 'Strom L1', '~Ampere', 7);
-        $this->RegisterVariableFloat('CurrentL2', 'Strom L2', '~Ampere', 8);
-        $this->RegisterVariableFloat('CurrentL3', 'Strom L3', '~Ampere', 9);
+        // Darstellungen (ab Symcon 8.0) statt eigener Variablenprofile
+        $kWh = self::PValue(' kWh', 2, 'bolt');
+        $eur = self::PValue(' €', 2, 'euro-sign');
+        $amp = self::PValue(' A', 1, 'plug');
 
-        $this->RegisterVariableFloat('SessionEnergy', 'Session Energie', 'EaseeWB.kWh', 10);
-        $this->RegisterVariableFloat('SessionCost', 'Session Kosten', 'EaseeWB.EUR', 11);
-        $this->RegisterVariableFloat('LifetimeEnergy', 'Gesamtenergie', 'EaseeWB.kWh', 12);
-        $this->RegisterVariableFloat('LifetimeCost', 'Gesamtkosten (geschätzt)', 'EaseeWB.EUR', 13);
-        $this->RegisterVariableFloat('EnergyPrice', 'Strompreis', 'EaseeWB.Price', 14);
-        $this->RegisterVariableFloat('EnergyToday', 'Energie heute', 'EaseeWB.kWh', 15);
-        $this->RegisterVariableFloat('CostToday', 'Kosten heute', 'EaseeWB.EUR', 16);
-        $this->RegisterVariableFloat('EnergyMonth', 'Energie dieser Monat', 'EaseeWB.kWh', 17);
-        $this->RegisterVariableFloat('CostMonth', 'Kosten dieser Monat', 'EaseeWB.EUR', 18);
-        $this->RegisterVariableFloat('EnergyYear', 'Energie dieses Jahr', 'EaseeWB.kWh', 19);
-        $this->RegisterVariableFloat('CostYear', 'Kosten dieses Jahr', 'EaseeWB.EUR', 20);
-        $this->RegisterVariableFloat('CostCounter', 'Kosten gesamt (seit Installation)', 'EaseeWB.EUR', 21);
+        $this->RegisterVariableInteger('Status', 'Status', self::PEnum(self::STATUS_OPTIONS, 'charging-station'), 1);
+        $this->RegisterVariableBoolean('ChargingActive', 'Laden', self::PSwitch('bolt'), 2);
+        $this->RegisterVariableFloat('Power', 'Ladeleistung', self::PValue(' kW', 2, 'bolt'), 3);
+        $this->RegisterVariableFloat('Current', 'Ladestrom', $amp, 4);
+        $this->RegisterVariableInteger('ChargeLimit', 'Ladestrom-Grenze', self::PSlider(6, $this->MaxAmpere(), 1, ' A', 0, 'gauge'), 5);
+        $this->RegisterVariableInteger('PhaseCount', 'Phasen', self::PValue('', 0, 'sitemap'), 6);
+        $this->RegisterVariableFloat('CurrentL1', 'Strom L1', $amp, 7);
+        $this->RegisterVariableFloat('CurrentL2', 'Strom L2', $amp, 8);
+        $this->RegisterVariableFloat('CurrentL3', 'Strom L3', $amp, 9);
 
-        $this->RegisterVariableBoolean('VehicleConnected', 'Fahrzeug verbunden', '~Switch', 20);
-        $this->RegisterVariableBoolean('CableLocked', 'Kabel verriegelt', '~Switch', 21);
-        $this->RegisterVariableBoolean('CableLockPermanent', 'Kabel dauerhaft verriegelt', '~Switch', 22);
-        $this->RegisterVariableBoolean('SmartCharging', 'Smart Charging', '~Switch', 23);
+        $this->RegisterVariableFloat('SessionEnergy', 'Session Energie', $kWh, 10);
+        $this->RegisterVariableFloat('SessionCost', 'Session Kosten', $eur, 11);
+        $this->RegisterVariableFloat('LifetimeEnergy', 'Gesamtenergie', $kWh, 12);
+        $this->RegisterVariableFloat('LifetimeCost', 'Gesamtkosten (geschätzt)', $eur, 13);
+        $this->RegisterVariableFloat('EnergyPrice', 'Strompreis', self::PValue(' €/kWh', 4, 'euro-sign'), 14);
+        $this->RegisterVariableFloat('EnergyToday', 'Energie heute', $kWh, 15);
+        $this->RegisterVariableFloat('CostToday', 'Kosten heute', $eur, 16);
+        $this->RegisterVariableFloat('EnergyMonth', 'Energie dieser Monat', $kWh, 17);
+        $this->RegisterVariableFloat('CostMonth', 'Kosten dieser Monat', $eur, 18);
+        $this->RegisterVariableFloat('EnergyYear', 'Energie dieses Jahr', $kWh, 19);
+        $this->RegisterVariableFloat('CostYear', 'Kosten dieses Jahr', $eur, 20);
+        $this->RegisterVariableFloat('CostCounter', 'Kosten gesamt (seit Installation)', $eur, 21);
 
-        $this->RegisterVariableBoolean('Online', 'Online', '~Switch', 30);
-        $this->RegisterVariableInteger('WiFiRSSI', 'WLAN Signal', 'EaseeWB.dBm', 31);
-        $this->RegisterVariableString('Firmware', 'Firmware', '', 32);
-        $this->RegisterVariableString('Reason', 'Grund für keinen Strom', '', 33);
-        $this->RegisterVariableInteger('ErrorCode', 'Fehlercode', '', 34);
-        $this->RegisterVariableString('ErrorText', 'Fehlertext', '', 35);
+        $this->RegisterVariableBoolean('VehicleConnected', 'Fahrzeug verbunden', self::PBool('Kein Fahrzeug', 'Verbunden', 'car', 0x2ECC71), 20);
+        $this->RegisterVariableBoolean('CableLocked', 'Kabel verriegelt', self::PBool('Entriegelt', 'Verriegelt', 'lock', -1), 21);
+        $this->RegisterVariableBoolean('CableLockPermanent', 'Kabel dauerhaft verriegelt', self::PSwitch('lock'), 22);
+        $this->RegisterVariableBoolean('SmartCharging', 'Smart Charging', self::PBool('Aus', 'An', 'leaf', 0x2ECC71), 23);
 
-        $this->RegisterVariableBoolean('ApiOk', 'API OK', '~Switch', 40);
-        $this->RegisterVariableInteger('LastUpdate', 'Letztes Update', '~UnixTimestamp', 41);
-        $this->RegisterVariableString('LastError', 'Letzter Fehler', '', 42);
+        $this->RegisterVariableBoolean('Online', 'Online', self::PBool('Offline', 'Online', 'wifi', 0x2ECC71, 0xE74C3C), 30);
+        $this->RegisterVariableInteger('WiFiRSSI', 'WLAN Signal', self::PValue(' dBm', 0, 'wifi'), 31);
+        $this->RegisterVariableString('Firmware', 'Firmware', self::PValue('', 0, 'microchip'), 32);
+        $this->RegisterVariableString('Reason', 'Grund für keinen Strom', self::PValue('', 0, 'circle-info'), 33);
+        $this->RegisterVariableInteger('ErrorCode', 'Fehlercode', self::PValue('', 0, 'triangle-exclamation'), 34);
+        $this->RegisterVariableString('ErrorText', 'Fehlertext', self::PValue('', 0, 'triangle-exclamation'), 35);
 
-        $this->MaintainVariable('Dashboard', 'Dashboard', VARIABLETYPE_STRING, '~HTMLBox', 50, $this->ReadPropertyBoolean('Dashboard'));
+        $this->RegisterVariableBoolean('ApiOk', 'API OK', self::PBool('Fehler', 'OK', 'cloud', 0x2ECC71, 0xE74C3C), 40);
+        $this->RegisterVariableInteger('LastUpdate', 'Letztes Update', self::PDateTime(1, 1), 41);
+        $this->RegisterVariableString('LastError', 'Letzter Fehler', self::PValue('', 0, 'triangle-exclamation'), 42);
+
+        // Darstellung „Webinhalt“ (HTML) statt des alten Profils ~HTMLBox
+        $this->MaintainVariable('Dashboard', 'Dashboard', VARIABLETYPE_STRING,
+            ['PRESENTATION' => VARIABLE_PRESENTATION_WEB_CONTENT, 'HTML_TYPE' => 0], 50, $this->ReadPropertyBoolean('Dashboard'));
 
         $this->EnableAction('ChargingActive');
         $this->EnableAction('ChargeLimit');
         $this->EnableAction('CableLockPermanent');
         // Strompreis wird im Instanz-Formular gepflegt
         $this->DisableAction('EnergyPrice');
+    }
+
+    // =================================================================
+    // Darstellungen (Symcon >= 8.0)
+    // =================================================================
+
+    private static function PValue(string $suffix, int $digits, string $icon): array
+    {
+        $p = ['PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'ICON' => $icon];
+        if ($suffix !== '') {
+            $p['SUFFIX'] = $suffix;
+        }
+        if ($digits > 0) {
+            $p['DIGITS'] = $digits;
+        }
+        return $p;
+    }
+
+    /** @param array $options Liste aus [Wert, Text, Symbol, Farbe] */
+    private static function PEnum(array $options, string $icon, bool $buttons = false): array
+    {
+        $list = [];
+        foreach ($options as [$value, $caption, $optIcon, $color]) {
+            $list[] = ['Value' => $value, 'Caption' => $caption, 'IconActive' => $optIcon !== '', 'IconValue' => $optIcon, 'Color' => $color];
+        }
+        $p = ['PRESENTATION' => VARIABLE_PRESENTATION_ENUMERATION, 'ICON' => $icon, 'DISPLAY' => 2, 'OPTIONS' => json_encode($list, JSON_UNESCAPED_UNICODE)];
+        if ($buttons) {
+            $p['LAYOUT'] = 1;
+        }
+        return $p;
+    }
+
+    /** Nur lesbarer Ja/Nein-Wert mit Text, Symbol und Farbe */
+    private static function PBool(string $false, string $true, string $icon, int $colorTrue, int $colorFalse = -1): array
+    {
+        return [
+            'PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION,
+            'ICON'         => $icon,
+            'OPTIONS'      => json_encode([
+                ['Value' => false, 'Caption' => $false, 'IconActive' => false, 'IconValue' => '', 'ColorActive' => $colorFalse !== -1, 'ColorValue' => $colorFalse],
+                ['Value' => true, 'Caption' => $true, 'IconActive' => false, 'IconValue' => '', 'ColorActive' => $colorTrue !== -1, 'ColorValue' => $colorTrue]
+            ], JSON_UNESCAPED_UNICODE)
+        ];
+    }
+
+    private static function PSwitch(string $icon): array
+    {
+        return ['PRESENTATION' => VARIABLE_PRESENTATION_SWITCH, 'ICON_TRUE' => $icon, 'USAGE_TYPE' => 0];
+    }
+
+    private static function PSlider(float $min, float $max, float $step, string $suffix, int $digits, string $icon): array
+    {
+        return [
+            'PRESENTATION' => VARIABLE_PRESENTATION_SLIDER, 'ICON' => $icon, 'MIN' => $min, 'MAX' => $max,
+            'STEP_SIZE' => $step, 'SUFFIX' => $suffix, 'DIGITS' => $digits
+        ];
+    }
+
+    /** @param int $date 0 = kein Datum, 1 = Datum  @param int $time 0 = keine Zeit, 1 = Stunden:Minuten */
+    private static function PDateTime(int $date, int $time): array
+    {
+        return ['PRESENTATION' => VARIABLE_PRESENTATION_DATE_TIME, 'DATE' => $date, 'MONTH_TEXT' => false, 'DAY_OF_THE_WEEK' => false, 'TIME' => $time];
+    }
+
+    private static function StatusText(int $opMode): string
+    {
+        foreach (self::STATUS_OPTIONS as [$value, $text]) {
+            if ($value === $opMode) {
+                return $text;
+            }
+        }
+        return 'Unbekannt (' . $opMode . ')';
+    }
+
+    /** Werte aus der Visualisierung prüfen, bevor sie verarbeitet werden. */
+    private static function RequireType(mixed $value, array $types): void
+    {
+        if (!in_array(gettype($value), $types, true)) {
+            throw new InvalidArgumentException('Ungültiger Wert: ' . gettype($value));
+        }
     }
 
     // =================================================================

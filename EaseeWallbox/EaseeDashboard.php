@@ -1,5 +1,10 @@
 <?php
 
+/**
+ * Copyright (c) 2026 Armin Frohwerk
+ * SPDX-License-Identifier: MIT
+ */
+
 declare(strict_types=1);
 
 /**
@@ -12,7 +17,7 @@ trait EaseeDashboard
     private function BuildDashboard(): string
     {
         $opMode = (int) $this->GetValue('Status');
-        $statusText = GetValueFormatted($this->GetIDForIdent('Status'));
+        $statusText = self::StatusText((int) $this->GetValue('Status'));
         $color = self::StatusColor($opMode, (int) $this->GetValue('ErrorCode'));
 
         $power = (float) $this->GetValue('Power');
@@ -145,7 +150,7 @@ trait EaseeDashboard
             return '';
         }
 
-        $mode = GetValueFormatted($this->GetIDForIdent('ScheduleMode'));
+        $mode = (self::SCHEDULE_TEXT[(int) $this->GetValue('ScheduleMode')] ?? '');
         $info = (string) $this->GetValue('ScheduleInfo');
 
         return '<div class="ew-box ew-sched"><span>🕒 Zeitsteuerung: <b>' . htmlspecialchars($mode) . '</b></span>'
