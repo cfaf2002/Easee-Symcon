@@ -153,9 +153,9 @@ check($m->v['TargetEnergy'] == 200.0, 'Ziel-Energie wird auf 200 kWh begrenzt');
 $m->RequestAction('ScheduleMode', 0);
 $m->WriteAttributeString('ChargerName', '</script><img src=x onerror=alert(1)>');
 $html = $m->GetVisualizationTile();
-check(!str_contains($html, '</script><img') && substr_count($html, '</script>') === substr_count((string) file_get_contents(__DIR__ . '/../EaseeWallbox/module.html'), '</script>') + 1,
+check(!str_contains($html, '</script><img') && substr_count($html, '</script>') === substr_count((string) file_get_contents(__DIR__ . '/../EaseeWallbox/tile.html'), '</script>') + 1,
     'Eingeschleustes HTML kann das Kachel-Skript nicht beenden');
-check(!str_contains((string) file_get_contents(__DIR__ . '/../EaseeWallbox/module.html'), '.innerHTML'), 'Kachel setzt Werte nur als Text (kein innerHTML)');
+check(!str_contains((string) file_get_contents(__DIR__ . '/../EaseeWallbox/tile.html'), '.innerHTML'), 'Kachel setzt Werte nur als Text (kein innerHTML)');
 
 echo "Geschwindigkeit\n";
 $m->Update(); $m->writes = []; $m->Update();
@@ -179,7 +179,7 @@ $m->p['TileBackground'] = ''; $m->p['CarImage'] = '';
 
 echo "Kachel-Farbschema\n";
 $m->p['TileTheme'] = 2;
-check($m->call('TileData')['theme'] === 'light', 'Farbschema „Hell“ wird an die Kachel gegeben');
+check($m->call('TileData')['theme'] === 2, 'Farbschema „Hell“ wird an die Kachel gegeben');
 $m->p['TileTheme'] = 0;
 
 echo "Tageswerte und Strompreis\n";

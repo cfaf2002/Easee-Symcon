@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 /**
  * Eigene Kachel für die Kachel-Visualisierung (HTML-SDK, ab Symcon 7).
- * Das HTML liegt in module.html; die Daten werden als JSON geschickt.
+ * Das HTML liegt in tile.html; die Daten werden als JSON geschickt.
  */
 trait EaseeTile
 {
@@ -19,7 +19,7 @@ trait EaseeTile
 
     public function GetVisualizationTile(): string
     {
-        $html = (string) file_get_contents(__DIR__ . '/module.html');
+        $html = (string) file_get_contents(__DIR__ . '/tile.html');
         $data = json_encode($this->TileData(true), self::TILE_JSON);
         $this->SetBuffer('TileHash', '');
 
@@ -152,7 +152,7 @@ trait EaseeTile
             'socTarget' => ($this->CurrentSoc() !== null && @$this->GetIDForIdent('TargetSoc') !== false
                             && (int) $this->GetValue('ScheduleMode') === 2) ? (int) $this->GetValue('TargetSoc') : null,
             'progress'  => $this->ChargeProgress(),
-            'theme'     => ['symcon', 'dark', 'light'][$this->ReadPropertyInteger('TileTheme')] ?? 'symcon',
+            'theme'     => $this->ReadPropertyInteger('TileTheme'),      // 0 = Symcon-Design, 1 = Dunkel, 2 = Hell
             'guest'     => $this->IsGuest(),
             'reminder'  => @$this->GetIDForIdent('ChargeReminder') !== false && (bool) $this->GetValue('ChargeReminder'),
             'updated'   => (int) $this->GetValue('LastUpdate') > 0 ? date('H:i', (int) $this->GetValue('LastUpdate')) : '-'

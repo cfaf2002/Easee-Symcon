@@ -2,16 +2,14 @@
 
 [![IP-Symcon ab 8.2](https://img.shields.io/badge/IP--Symcon-ab_8.2-0b6fb3.svg)](https://www.symcon.de)
 [![Optimiert für Symcon 9.0](https://img.shields.io/badge/optimiert_f%C3%BCr-Symcon_9.0-0b6fb3.svg)](https://www.symcon.de/de/service/dokumentation/installation/migrationen/v81-v90-q1-2026/)
-![Modul-Version 1.4](https://img.shields.io/badge/Modul--Version-1.4-informational.svg)
+[![Modul-Version 1.5 (Build 10)](https://img.shields.io/badge/Modul--Version-1.5_(Build_10)-informational.svg)](library.json)
 [![Tests](https://github.com/cfaf2002/Easee-Symcon/actions/workflows/tests.yml/badge.svg)](https://github.com/cfaf2002/Easee-Symcon/actions/workflows/tests.yml)
-![PHP 8.5](https://img.shields.io/badge/PHP-8.5-777bb4.svg?logo=php&logoColor=white)
+[![PHP 8.3 und 8.5](https://img.shields.io/badge/PHP-8.3_%7C_8.5-777bb4.svg?logo=php&logoColor=white)](https://www.php.net)
 [![SDK: IPSModuleStrict](https://img.shields.io/badge/SDK-IPSModuleStrict-success.svg)](https://www.symcon.de/de/service/dokumentation/entwicklerbereich/sdk-tools/sdk-php/module/)
-[![Darstellungen statt Profile](https://img.shields.io/badge/Variablen-Darstellungen-success.svg)](https://www.symcon.de/de/service/dokumentation/entwicklerbereich/sdk-tools/sdk-php/darstellungen/)
-[![Kachel-Visualisierung: HTML-SDK](https://img.shields.io/badge/Kachel--Visualisierung-HTML--SDK-orange.svg)](https://www.symcon.de/de/service/dokumentation/entwicklerbereich/sdk-tools/sdk-php/html-sdk/)
-![Farbschema: Symcon-Design, Dunkel, Hell](https://img.shields.io/badge/Farbschema-Symcon--Design_%7C_Dunkel_%7C_Hell-blueviolet.svg)
-![Easee Cloud](https://img.shields.io/badge/Cloud-Easee_Observations--API-lightgrey.svg)
+[![Variablen: Darstellungen](https://img.shields.io/badge/Variablen-Darstellungen-success.svg)](https://www.symcon.de/de/service/dokumentation/entwicklerbereich/sdk-tools/sdk-php/darstellungen/)
 ![Sprache: Deutsch](https://img.shields.io/badge/Sprache-Deutsch-blueviolet.svg)
 [![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-green.svg)](LICENSE)
+![Easee Cloud](https://img.shields.io/badge/Cloud-Easee_Observations--API-lightgrey.svg)
 
 Modul zum Auslesen und Steuern einer **Easee-Wallbox** über die Easee Cloud.
 Ersetzt die bisherigen sechs Skripte (`Easee_API`, `Easee_TextHelper`, `Easee_Setup`,
@@ -382,7 +380,7 @@ und „Kabel dauerhaft verriegelt“ sind jetzt direkt schaltbar, „Aktualisier
 
 | Pfad | Inhalt |
 |---|---|
-| `EaseeWallbox/` | Modul: Abruf, Variablen, Zeitsteuerung, Lade-Erinnerung (`EaseeReminder.php`), Dashboard und Kachel (`module.html`) |
+| `EaseeWallbox/` | Modul: Abruf, Variablen, Zeitsteuerung, Lade-Erinnerung (`EaseeReminder.php`), Dashboard und Kachel (`tile.html`) |
 | `tests/bootstrap.php` | Testumgebung ohne Symcon (bildet `IPSModuleStrict` nach) |
 | `tests/run.php` | Testsuite mit simulierter Easee-Cloud |
 | `tests/stubs.php` | Ladetest mit den offiziellen [Symcon-Stubs](https://github.com/symcon/SymconStubs) |
@@ -406,6 +404,7 @@ GitHub Actions (`.github/workflows/tests.yml`) prüft bei jedem Push mit PHP 8.3
 
 | Version | Build | Datum | Beschreibung |
 |---|---|---|---|
+| 1.5 | 10 | 06.10.2026 | Einheitliches Design nach `STYLEGUIDE.md`: Kachel-Grundlage (Farben, Schrift, Radien, Zustandsfarben) und Einstellung „Farbschema der Kachel“ (Symcon-Design, Dunkel, Hell); Kachel-Datei heißt `tile.html`; einheitliche Badges; gemeinsamer Test-Workflow mit Struktur- und Ladetest; Zustandsfarben (Laden, Warten, Fehler …) wie in allen Modulen; Farbschema geht als Zahl an die Kachel; Systemschrift statt Poppins |
 | 1.4 | 9 | 06.10.2026 | Lade-Erinnerung am Abend: Meldung an die Visualisierung und Hinweis in der Kachel, wenn das Auto ab 21 Uhr am Ort der Location Control steht, aber nicht angesteckt ist; flache Handy-Kachel (2×1) wieder mit Ring links und Werten rechts |
 | 1.3 | 8 | 04.10.2026 | Prüfung nachgeschärft: Variablen werden nur bei Änderung geschrieben, Dashboard mit Darstellung „Webinhalt“ statt `~HTMLBox`, ungültige Zeichen aus der Cloud brechen die Kachel nicht mehr ab, Akzentfarbe des Symcon-Designs für die Stromgrenze-Tasten |
 | 1.3 | 7 | 04.10.2026 | Symcon-9.0-Technik: `IPSModuleStrict`, Darstellungen statt Profile, Farbschema (Symcon-Design / Dunkel / Hell); Sicherheit: Prüfung aller Aktionen und Werte, sichere Einbettung der Kachel-Daten, nur HTTPS mit Zertifikatsprüfung, nur echte Bilder; Geschwindigkeit: Kachel-Updates nur bei Änderung, Bilder verkleinert und zwischengespeichert, gzip; Tests, Ladetest und MIT-Lizenz |

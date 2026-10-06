@@ -35,7 +35,7 @@ trait EaseeDashboard
         $n = fn ($v, $d = 2) => number_format((float) $v, $d, ',', '.');
 
         $chip = function (string $label, bool $on) use ($e) {
-            return '<span class="ew-chip"><i style="background:' . ($on ? '#2ecc71' : '#e74c3c') . '"></i>'
+            return '<span class="ew-chip"><i style="background:' . ($on ? '#34b36b' : '#e5484d') . '"></i>'
                 . $e($label) . '</span>';
         };
         $kpi = function (string $label, string $value, string $unit = '') use ($e) {
@@ -212,30 +212,31 @@ trait EaseeDashboard
     private static function StatusColor(int $opMode, int $errorCode): string
     {
         if ($errorCode !== 0) {
-            return '#e74c3c';
+            return '#e5484d';
         }
 
+        // Zustandsfarben nach Hausstil (STYLEGUIDE.md): ok, warn, bad, info, off
         return [
-            0 => '#555555', 1 => '#95a5a6', 2 => '#f1c40f', 3 => '#2ecc71', 4 => '#3498db',
-            5 => '#e74c3c', 6 => '#3498db', 7 => '#e67e22', 8 => '#7f8c8d'
-        ][$opMode] ?? '#7f8c8d';
+            0 => '#6b7785', 1 => '#8796a5', 2 => '#e2a63b', 3 => '#34b36b', 4 => '#4b8ef0',
+            5 => '#e5484d', 6 => '#4b8ef0', 7 => '#e67e22', 8 => '#8796a5'
+        ][$opMode] ?? '#8796a5';
     }
 
     private static function WifiQuality(int $rssi): array
     {
         if ($rssi === 0) {
-            return ['#95a5a6', 'unbekannt'];
+            return ['#8796a5', 'unbekannt'];
         }
         if ($rssi >= -60) {
-            return ['#2ecc71', 'sehr gut'];
+            return ['#34b36b', 'sehr gut'];
         }
         if ($rssi >= -70) {
-            return ['#f1c40f', 'gut'];
+            return ['#e2a63b', 'gut'];
         }
         if ($rssi >= -80) {
             return ['#e67e22', 'ausreichend'];
         }
-        return ['#e74c3c', 'schwach'];
+        return ['#e5484d', 'schwach'];
     }
 
     private static function FormatTime(int $ts): string
