@@ -86,6 +86,84 @@
         },
         {
             "type": "ExpansionPanel",
+            "caption": "Lade-Erinnerung am Abend",
+            "items": [
+                {
+                    "type": "CheckBox",
+                    "name": "ReminderEnabled",
+                    "caption": "Melden, wenn das Auto abends zu Hause steht, aber nicht angesteckt ist"
+                },
+                {
+                    "type": "SelectTime",
+                    "name": "ReminderTime",
+                    "caption": "Ab Uhrzeit (gilt bis 6 Uhr morgens)"
+                },
+                {
+                    "type": "Select",
+                    "name": "ReminderSource",
+                    "caption": "„Zu Hause“ erkennen über",
+                    "onChange": "IPS_RequestAction($id, 'FormReminderSource', $ReminderSource);",
+                    "options": [
+                        {
+                            "caption": "Ja/Nein-Variable (z. B. „Zu Hause“ der Volvo-Instanz)",
+                            "value": 0
+                        },
+                        {
+                            "caption": "Breiten- und Längengrad im Vergleich zur Location Control",
+                            "value": 1
+                        }
+                    ]
+                },
+                {
+                    "type": "SelectVariable",
+                    "name": "ReminderHomeVariable",
+                    "caption": "Variable „Fahrzeug zu Hause“ (an = zu Hause)",
+                    "width": "400px"
+                },
+                {
+                    "type": "SelectVariable",
+                    "name": "ReminderLatVariable",
+                    "caption": "Variable Breitengrad",
+                    "width": "400px"
+                },
+                {
+                    "type": "SelectVariable",
+                    "name": "ReminderLonVariable",
+                    "caption": "Variable Längengrad",
+                    "width": "400px"
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "ReminderRadius",
+                    "caption": "„Zu Hause“ im Umkreis von",
+                    "suffix": "m",
+                    "minimum": 20,
+                    "maximum": 5000
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "ReminderDelay",
+                    "caption": "Nach der Ankunft Zeit zum Anstecken",
+                    "suffix": "Minuten",
+                    "minimum": 0,
+                    "maximum": 120
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "ReminderSocBelow",
+                    "caption": "Nur melden, wenn der Akkustand unter (100 = immer, wenn nicht voll)",
+                    "suffix": "%",
+                    "minimum": 1,
+                    "maximum": 100
+                },
+                {
+                    "type": "Label",
+                    "caption": "Gemeldet wird einmal pro Abend an die Visualisierung unter „Benachrichtigungen“ (leer = erste Kachel-Visualisierung); ein Tipp auf die Meldung öffnet die Wallbox. Zusätzlich zeigt die Kachel einen Hinweis und es gibt die Variable „Lade-Erinnerung“. Nur bei „Eigenes Auto“, nicht bei Gastladung."
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
             "caption": "Zeitsteuerung",
             "items": [
                 {

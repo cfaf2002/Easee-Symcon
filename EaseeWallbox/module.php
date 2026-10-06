@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/EaseeDashboard.php';
 require_once __DIR__ . '/EaseeSchedule.php';
+require_once __DIR__ . '/EaseeReminder.php';
 require_once __DIR__ . '/EaseeTile.php';
 
 /**
@@ -26,6 +27,7 @@ class EaseeWallbox extends IPSModuleStrict
 {
     use EaseeDashboard;
     use EaseeSchedule;
+    use EaseeReminder;
     use EaseeTile;
 
     private const API_HOST = 'https://api.easee.com';
@@ -133,6 +135,7 @@ class EaseeWallbox extends IPSModuleStrict
         $this->RegisterAttributeInteger('LastPhases', 3);
         $this->RegisterAttributeString('ImageCache', '{}');     // verkleinerte Bilder für die Kachel
         $this->RegisterScheduleAttributes();
+        $this->RegisterReminderProperties();
 
         $this->RegisterTimer('UpdateTimer', 0, 'EASEE_Update($_IPS[\'TARGET\']);');
         $this->RegisterTimer('QuickRefresh', 0, 'IPS_RequestAction($_IPS[\'TARGET\'], \'QuickRefresh\', true);');
@@ -151,6 +154,7 @@ class EaseeWallbox extends IPSModuleStrict
         $this->CreateVariables();
         $this->CreateScheduleVariables();
         $this->SetupSoc();
+        $this->SetupReminder();
 
         // Aufräumen: Schalter-Variable aus Build 3 wird nicht mehr gebraucht
         if (@$this->GetIDForIdent('GuestCharging') !== false) {
@@ -233,6 +237,12 @@ class EaseeWallbox extends IPSModuleStrict
         if ($Message === VM_UPDATE && $SenderID === $this->ReadAttributeInteger('SocWatched')) {
             $this->UpdateSoc();
         }
+
+        // Auto kommt nach Hause / fährt weg -> Lade-Erinnerung neu bewerten
+        if ($Message === VM_UPDATE && $this->IsReminderSource($SenderID)) {
+            $this->EvaluateReminder();
+            $this->RefreshViews();
+        }
     }
 
     public function RequestAction(string $Ident, mixed $Value): void
@@ -246,6 +256,14 @@ class EaseeWallbox extends IPSModuleStrict
             case 'ChargeLimit':
                 self::RequireType($Value, ['integer', 'double']);
                 $this->SetChargeLimit((int) $Value);
+                break;
+
+            case 'FormReminderSource':
+                self::RequireType($Value, ['integer']);
+                $this->UpdateFormField('ReminderHomeVariable', 'visible', (int) $Value === 0);
+                foreach (['ReminderLatVariable', 'ReminderLonVariable', 'ReminderRadius'] as $field) {
+                    $this->UpdateFormField($field, 'visible', (int) $Value === 1);
+                }
                 break;
 
             case 'FormVehicleMode':
@@ -301,6 +319,7 @@ class EaseeWallbox extends IPSModuleStrict
 
         if ($ok) {
             $this->EvaluateSchedule(false);
+            $this->EvaluateReminder();       // nur mit frischem Steckerstatus
         }
 
         $this->RefreshViews();
@@ -681,7 +700,8 @@ class EaseeWallbox extends IPSModuleStrict
     {
         $form = json_decode(file_get_contents(__DIR__ . '/form.json'), true);
         $own = !$this->IsGuest();
-        $walk = function (array &$items) use (&$walk, $own) {
+        $coords = $this->ReadPropertyInteger('ReminderSource') === 1;
+        $walk = function (array &$items) use (&$walk, $own, $coords) {
             foreach ($items as &$item) {
                 if (!is_array($item)) {
                     continue;
@@ -692,6 +712,13 @@ class EaseeWallbox extends IPSModuleStrict
                 }
                 if ($name === 'GuestHint') {
                     $item['visible'] = !$own;
+                }
+                // Lade-Erinnerung: je nach Quelle nur die passenden Felder
+                if ($name === 'ReminderHomeVariable') {
+                    $item['visible'] = !$coords;
+                }
+                if (in_array($name, ['ReminderLatVariable', 'ReminderLonVariable', 'ReminderRadius'], true)) {
+                    $item['visible'] = $coords;
                 }
                 if (isset($item['items']) && is_array($item['items'])) {
                     $walk($item['items']);
@@ -1102,18 +1129,24 @@ class EaseeWallbox extends IPSModuleStrict
         return parent::SetValue($Ident, $Value);
     }
 
-    private function Notify(string $title, string $text): void
+    /** @param bool $fallback ohne eingestellte Visualisierung die erste Kachel-Visualisierung nehmen */
+    private function Notify(string $title, string $text, bool $fallback = false): void
     {
         $id = $this->ReadPropertyInteger('NotifyInstance');
+        if (($id <= 0 || !@IPS_InstanceExists($id)) && $fallback) {
+            $id = IPS_GetInstanceListByModuleID(self::TILE_VISU_GUID)[0] ?? 0;
+        }
         if ($id <= 0 || !@IPS_InstanceExists($id)) {
+            $this->SendDebug('Push', 'Keine Visualisierung für Meldungen gefunden', 0);
             return;
         }
+        $title = mb_substr($title, 0, 32);
 
         $prefix = IPS_GetModule(IPS_GetInstance($id)['ModuleInfo']['ModuleID'])['Prefix'] ?? '';
 
         try {
             if ($prefix === 'VISU' && function_exists('VISU_PostNotification')) {
-                VISU_PostNotification($id, $title, $text, 'Electricity', 0);
+                VISU_PostNotification($id, $title, $text, 'Electricity', $this->InstanceID);   // Tippen öffnet die Wallbox
             } elseif ($prefix === 'WFC' && function_exists('WFC_PushNotification')) {
                 WFC_PushNotification($id, $title, $text, '', 0);
             }

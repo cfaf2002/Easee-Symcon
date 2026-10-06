@@ -32,10 +32,14 @@ $GLOBALS['ext'] = [];        // fremde Variablen (z. B. Akkustand des Autos)
 $GLOBALS['log'] = [];
 
 function IPS_GetKernelRunlevel(): int { return KR_READY; }
-function IPS_GetInstanceListByModuleID(string $guid): array { return []; }
+function IPS_GetInstanceListByModuleID(string $guid): array { return $GLOBALS['instances'][$guid] ?? []; }
+function IPS_GetProperty(int $id, string $n): mixed { return $GLOBALS['props'][$id][$n] ?? null; }
+function IPS_GetInstance(int $id): array { return ['ModuleInfo' => ['ModuleID' => $GLOBALS['moduleOf'][$id] ?? '']]; }
+function IPS_GetModule(string $guid): array { return ['Prefix' => $GLOBALS['prefixOf'][$guid] ?? '']; }
+function VISU_PostNotification(int $id, string $title, string $text, string $icon, int $target): bool { $GLOBALS['notes'][] = [$id, $title, $text, $target]; return true; }
 function IPS_SemaphoreEnter(string $n, int $t): bool { return true; }
 function IPS_SemaphoreLeave(string $n): bool { return true; }
-function IPS_InstanceExists(int $id): bool { return false; }
+function IPS_InstanceExists(int $id): bool { return isset($GLOBALS['moduleOf'][$id]); }
 function IPS_VariableExists(int $id): bool { return array_key_exists($id, $GLOBALS['ext']); }
 function GetValue(int $id): mixed { return $GLOBALS['ext'][$id]; }
 function IPS_SetProperty(int $id, string $n, mixed $v): bool { $GLOBALS['mod']->p[$n] = $v; return true; }
@@ -123,6 +127,9 @@ class IPSModuleStrict
     protected function GetBuffer(string $n): string { return $this->buffers[$n] ?? ''; }
     protected function SetStatus(int $s): bool { $this->status = $s; return true; }
     protected function GetStatus(): int { return $this->status; }
+    public array $refs = [];
+    protected function RegisterReference(int $id): bool { $this->refs[$id] = true; return true; }
+    protected function UnregisterReference(int $id): bool { unset($this->refs[$id]); return true; }
     protected function UpdateFormField(string $f, string $p, mixed $v): bool { return true; }
     protected function SendDebug(string $m, string $d, int $f): bool { if (getenv('DEBUG')) { echo "  DBG $m: $d\n"; } return true; }
     protected function LogMessage(string $m, int $t): bool { $GLOBALS['log'][] = $m; return true; }

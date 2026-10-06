@@ -54,6 +54,18 @@
     .ew-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 22%, transparent); }
     .ew.charging .ew-dot { animation: pulse 1.6s ease-in-out infinite; }
     .ew-updated { margin-left: auto; font-size: 11px; color: var(--muted); }
+    /* Lade-Erinnerung: Auto zu Hause, aber nicht angesteckt */
+    .ew-remind { display: none; align-items: center; gap: 6px; padding: 3px 10px 3px 8px; border-radius: 99px; white-space: nowrap;
+                 font-size: 11.5px; font-weight: 600; color: #fff; background: #e67e22; box-shadow: 0 0 0 0 rgba(230,126,34,.5);
+                 animation: remind 2.4s ease-out infinite; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    .ew-remind.on { display: inline-flex; flex: none; }
+    .ew-head { min-width: 0; }
+    .ew-status { min-width: 0; }
+    .ew-status #status { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    @media (max-width: 460px) { .ew.remind .ew-updated { display: none; } }
+    @media (max-width: 340px) { .ew.remind .ew-status #status { display: none; } }
+    .ew-remind svg { width: 13px; height: 13px; flex: none; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    @keyframes remind { 70% { box-shadow: 0 0 0 7px rgba(230,126,34,0); } 100% { box-shadow: 0 0 0 0 rgba(230,126,34,0); } }
 
     /* ---------- Hauptbereich ---------- */
     .ew-main {
@@ -218,8 +230,10 @@
     /* Flache Kacheln (z. B. Handy): Ring links, wichtigste Werte + Knopf rechts */
     @media (max-height: 300px) and (min-width: 280px) {
         .ew { padding-top: 44px; padding-bottom: 10px; gap: 6px; }
-        .ew-main { grid-template-columns: auto minmax(0, 1fr); gap: clamp(10px, 4vw, 28px); align-items: center; }
-        .ew-ring { width: min(38vw, calc(100vh - 70px)); }
+        /* Raster statt der Hochkant-Anordnung schmaler Kacheln */
+        .ew-main { display: grid; height: auto; grid-template-columns: auto minmax(0, 1fr); gap: clamp(10px, 4vw, 28px); align-items: center; }
+        .ew-gauge { flex: none; min-height: 0; max-height: none; }
+        .ew-ring { width: min(38vw, calc(100vh - 70px)); height: auto; }
         .ew-kw { font-size: clamp(20px, 11vh, 34px); }
         .ew-kwunit { font-size: 11px; margin-top: 2px; }
         .ew-max, .ew-updated, .ew-scene { display: none; }
@@ -240,6 +254,12 @@
         .ew-value small { display: none; }
         .ew-action { margin-top: 6px; padding: 8px 10px; font-size: 13px; border-radius: 9px; }
     }
+    /* Sehr flach (2×1 auf dem Handy): nur ein Wert über dem Knopf */
+    @media (max-height: 190px) and (min-width: 280px) {
+        .ew-row.today { display: none !important; }
+        .ew.has-soc .ew-row.session { display: none !important; }
+        .ew-row.session, .ew.has-soc .ew-row.soc { padding: 4px 0; border: 0; }
+    }
 </style>
 
 <div class="ew-bg" id="bg"></div>
@@ -247,6 +267,9 @@
 <div class="ew" id="root">
     <div class="ew-head">
         <span class="ew-status"><span class="ew-dot"></span><span id="status">–</span></span>
+        <span class="ew-remind" id="remind" title="Das Auto steht zu Hause, ist aber nicht an der Wallbox angesteckt">
+            <svg viewBox="0 0 24 24"><path d="M9 2v6M15 2v6M6 8h12v3a6 6 0 0 1-12 0zM12 17v5"/></svg><span>Bitte anstecken</span>
+        </span>
         <span class="ew-updated" id="updated"></span>
     </div>
 
@@ -405,6 +428,8 @@
 
         $('status').textContent = state.status;
         $('updated').textContent = 'Stand ' + state.updated + (state.ok ? '' : ' · keine Verbindung');
+        $('remind').classList.toggle('on', !!state.reminder);
+        $('root').classList.toggle('remind', !!state.reminder);
         $('power').textContent = state.power;
         $('maxkw').textContent = state.maxKW;
 

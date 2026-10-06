@@ -154,6 +154,7 @@ trait EaseeTile
             'progress'  => $this->ChargeProgress(),
             'theme'     => ['symcon', 'dark', 'light'][$this->ReadPropertyInteger('TileTheme')] ?? 'symcon',
             'guest'     => $this->IsGuest(),
+            'reminder'  => @$this->GetIDForIdent('ChargeReminder') !== false && (bool) $this->GetValue('ChargeReminder'),
             'updated'   => (int) $this->GetValue('LastUpdate') > 0 ? date('H:i', (int) $this->GetValue('LastUpdate')) : '-'
         ];
 

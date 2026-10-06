@@ -2,7 +2,7 @@
 
 [![IP-Symcon ab 8.2](https://img.shields.io/badge/IP--Symcon-ab_8.2-0b6fb3.svg)](https://www.symcon.de)
 [![Optimiert für Symcon 9.0](https://img.shields.io/badge/optimiert_f%C3%BCr-Symcon_9.0-0b6fb3.svg)](https://www.symcon.de/de/service/dokumentation/installation/migrationen/v81-v90-q1-2026/)
-![Modul-Version 1.3](https://img.shields.io/badge/Modul--Version-1.3-informational.svg)
+![Modul-Version 1.4](https://img.shields.io/badge/Modul--Version-1.4-informational.svg)
 [![Tests](https://github.com/cfaf2002/Easee-Symcon/actions/workflows/tests.yml/badge.svg)](https://github.com/cfaf2002/Easee-Symcon/actions/workflows/tests.yml)
 ![PHP 8.5](https://img.shields.io/badge/PHP-8.5-777bb4.svg?logo=php&logoColor=white)
 [![SDK: IPSModuleStrict](https://img.shields.io/badge/SDK-IPSModuleStrict-success.svg)](https://www.symcon.de/de/service/dokumentation/entwicklerbereich/sdk-tools/sdk-php/module/)
@@ -30,18 +30,19 @@ Autor: Armin Frohwerk · Lizenz: MIT
 7. [Zeitsteuerung](#zeitsteuerung)
 8. [Eigenes Auto oder Gastladung](#eigenes-auto-oder-gastladung)
 9. [Akkustand des Fahrzeugs (optional)](#akkustand-des-fahrzeugs-optional)
-10. [Strompreis](#strompreis)
-11. [Verbrauch pro Tag im Archiv](#verbrauch-pro-tag-im-archiv)
-12. [Statistik](#statistik)
-13. [Kachel-Visualisierung](#kachel-visualisierung)
-14. [Ladeende-Erkennung](#ladeende-erkennung)
-15. [PHP-Befehle](#php-befehle)
-16. [Umstieg von den alten Skripten](#umstieg-von-den-alten-skripten)
-17. [Sicherheit und Geschwindigkeit](#sicherheit-und-geschwindigkeit)
-18. [Fehlersuche](#fehlersuche)
-19. [Entwicklung und Tests](#entwicklung-und-tests)
-20. [Changelog](#changelog)
-21. [Lizenz](#lizenz)
+10. [Lade-Erinnerung am Abend](#lade-erinnerung-am-abend)
+11. [Strompreis](#strompreis)
+12. [Verbrauch pro Tag im Archiv](#verbrauch-pro-tag-im-archiv)
+13. [Statistik](#statistik)
+14. [Kachel-Visualisierung](#kachel-visualisierung)
+15. [Ladeende-Erkennung](#ladeende-erkennung)
+16. [PHP-Befehle](#php-befehle)
+17. [Umstieg von den alten Skripten](#umstieg-von-den-alten-skripten)
+18. [Sicherheit und Geschwindigkeit](#sicherheit-und-geschwindigkeit)
+19. [Fehlersuche](#fehlersuche)
+20. [Entwicklung und Tests](#entwicklung-und-tests)
+21. [Changelog](#changelog)
+22. [Lizenz](#lizenz)
 
 ## Funktionen
 
@@ -56,6 +57,7 @@ Autor: Armin Frohwerk · Lizenz: MIT
 - **Eigene Kachel für die Kachel-Visualisierung** mit Start/Pause und Stromgrenze
 - **Farbschema der Kachel:** Symcon-Design, Dunkel oder Hell
 - Push-Benachrichtigungen bei Ladebeginn, Ladeende und Fehlern
+- **Lade-Erinnerung am Abend:** Meldung, wenn das Auto ab 21 Uhr zu Hause steht, aber nicht angesteckt ist
 - Grafisches HTML-Dashboard mit 24-h-Leistungsdiagramm und Monatsübersicht
 - Automatische Token-Verwaltung (Refresh, Neuanmeldung bei Ablauf)
 - Nutzt die **Observations-API** von Easee (der alte `/state`-Endpunkt wurde zum 01.09.2026 abgeschaltet)
@@ -127,6 +129,7 @@ Alle Variablen nutzen **Darstellungen** (Symcon ≥ 8.0): Der Status erscheint a
 | Energie/Kosten dieser Monat, dieses Jahr | Float | Statistik aus dem Zählerstand |
 | Kosten gesamt (seit Installation) | Float (€) | Laufender Kostenzähler, jede kWh mit dem damals gültigen Preis |
 | Fahrzeug verbunden | Boolean | |
+| Lade-Erinnerung | Boolean | OK / Bitte anstecken (nur mit eingeschalteter Lade-Erinnerung) |
 | Kabel verriegelt | Boolean | Aktueller Zustand |
 | Kabel dauerhaft verriegelt | Boolean, schaltbar | Dauerverriegelung ein/aus |
 | Smart Charging | Boolean | |
@@ -196,6 +199,29 @@ Wallbox dann bis zu diesem Prozentwert statt bis zu einer kWh-Menge (Ladezeit ge
 Ladeverlusten) und pausiert, sobald das Ziel erreicht ist. Das Modul reagiert sofort, wenn sich die Quellvariable ändert.
 
 Ohne aktivierten Schalter bleibt alles wie bisher – nicht jedes Auto bietet eine Schnittstelle.
+
+## Lade-Erinnerung am Abend
+
+Steht das eigene Auto abends **am Ort der Location Control**, ist aber **nicht an der Wallbox angesteckt**, gibt es eine Meldung
+in der Visualisierung. Einrichten in der Instanz unter **„Lade-Erinnerung am Abend“**:
+
+| Einstellung | Bedeutung |
+|---|---|
+| Melden, wenn … | Schalter für die Erinnerung |
+| Ab Uhrzeit | Standard **21:00**; die Erinnerung gilt bis 6 Uhr morgens |
+| „Zu Hause“ erkennen über | **Ja/Nein-Variable**, z. B. „Zu Hause“ der Volvo-Instanz, oder **Breiten- und Längengrad**: Dann rechnet das Modul selbst die Entfernung zum Standort unter Kern-Instanzen → Location Control |
+| Umkreis | Nur bei Breite/Länge: so nah muss das Auto am Standort sein (Standard 150 m) |
+| Zeit zum Anstecken | Nach der Ankunft wird so lange gewartet, bevor gemeldet wird (Standard 10 Minuten) |
+| Nur melden, wenn der Akkustand unter | Mit Akkustand: bei vollem Akku keine Meldung (Standard 100 % = immer, wenn nicht voll) |
+
+**So meldet das Modul**
+- **Einmal pro Abend** an die Visualisierung unter „Benachrichtigungen“, ohne Eintrag an die erste Kachel-Visualisierung. Ein Tipp auf die
+  Meldung öffnet die Wallbox. Registrierte Handys bekommen sie als Push-Nachricht.
+- In der **Kachel** erscheint oben der Hinweis **„Bitte anstecken“**, bis das Auto angesteckt ist oder wegfährt.
+- Die Variable **„Lade-Erinnerung“** (OK / Bitte anstecken) steht für eigene Ereignisse und Abläufe bereit.
+- Kommt das Auto erst später nach Hause, z. B. um 22:30, wird nach der eingestellten Wartezeit gemeldet. Nach Mitternacht zählt es
+  noch zum selben Abend, es gibt also keine zweite Meldung.
+- Bei **Gastladung** ist die Erinnerung aus, sie gilt nur für das eigene Auto.
 
 ## Strompreis
 
@@ -356,7 +382,7 @@ und „Kabel dauerhaft verriegelt“ sind jetzt direkt schaltbar, „Aktualisier
 
 | Pfad | Inhalt |
 |---|---|
-| `EaseeWallbox/` | Modul: Abruf, Variablen, Zeitsteuerung, Dashboard und Kachel (`module.html`) |
+| `EaseeWallbox/` | Modul: Abruf, Variablen, Zeitsteuerung, Lade-Erinnerung (`EaseeReminder.php`), Dashboard und Kachel (`module.html`) |
 | `tests/bootstrap.php` | Testumgebung ohne Symcon (bildet `IPSModuleStrict` nach) |
 | `tests/run.php` | Testsuite mit simulierter Easee-Cloud |
 | `tests/stubs.php` | Ladetest mit den offiziellen [Symcon-Stubs](https://github.com/symcon/SymconStubs) |
@@ -380,6 +406,7 @@ GitHub Actions (`.github/workflows/tests.yml`) prüft bei jedem Push mit PHP 8.3
 
 | Version | Build | Datum | Beschreibung |
 |---|---|---|---|
+| 1.4 | 9 | 06.10.2026 | Lade-Erinnerung am Abend: Meldung an die Visualisierung und Hinweis in der Kachel, wenn das Auto ab 21 Uhr am Ort der Location Control steht, aber nicht angesteckt ist; flache Handy-Kachel (2×1) wieder mit Ring links und Werten rechts |
 | 1.3 | 8 | 04.10.2026 | Prüfung nachgeschärft: Variablen werden nur bei Änderung geschrieben, Dashboard mit Darstellung „Webinhalt“ statt `~HTMLBox`, ungültige Zeichen aus der Cloud brechen die Kachel nicht mehr ab, Akzentfarbe des Symcon-Designs für die Stromgrenze-Tasten |
 | 1.3 | 7 | 04.10.2026 | Symcon-9.0-Technik: `IPSModuleStrict`, Darstellungen statt Profile, Farbschema (Symcon-Design / Dunkel / Hell); Sicherheit: Prüfung aller Aktionen und Werte, sichere Einbettung der Kachel-Daten, nur HTTPS mit Zertifikatsprüfung, nur echte Bilder; Geschwindigkeit: Kachel-Updates nur bei Änderung, Bilder verkleinert und zwischengespeichert, gzip; Tests, Ladetest und MIT-Lizenz |
 | 1.2 | 6 | 02.10.2026 | Tablet hochkant: Leistungsring richtet sich nach dem freien Platz |

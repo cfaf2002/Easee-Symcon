@@ -16,6 +16,13 @@ require __DIR__ . '/../EaseeWallbox/module.php';
 class T extends EaseeWallbox
 {
     public array $obs = [];
+    public int $clock = 0;
+
+    protected function ReminderNow(): int
+    {
+        return $this->clock ?: time();
+    }
+
     public array $cmds = [];
 
     protected function HttpRequest(string $method, string $url, ?array $body, ?string $token): array
@@ -243,6 +250,63 @@ $e->obs=[109=>1,114=>0,120=>0,121=>0.0]+$b; $e->Update(); $e->Update();
 $e->obs=[109=>2,114=>0,120=>0,121=>0.0,124=>13301.5]+$b; $e->Update();
 check($e->v['SessionEnergy']==0.0, 'Nach Ab- und Einstecken wieder bei 0');
 $GLOBALS['mod']=$m;
+
+echo "Lade-Erinnerung am Abend\n";
+$LC='{45E97A63-F870-408A-B259-2933F7EABF74}'; $TV='{B5B875BB-9B76-45FD-4E67-2607E45B3AC4}';
+$GLOBALS['instances'][$LC]=[700]; $GLOBALS['props'][700]['Location']=json_encode(['latitude'=>51.98,'longitude'=>9.82]);
+$GLOBALS['instances'][$TV]=[800]; $GLOBALS['moduleOf'][800]=$TV; $GLOBALS['prefixOf'][$TV]='VISU'; $GLOBALS['notes']=[];
+$GLOBALS['ext'][901]=true; $GLOBALS['ext'][902]=51.98; $GLOBALS['ext'][903]=9.82;
+$r=new T(); $GLOBALS['mod']=$r; $r->Create(); $r->p['Username']='a'; $r->p['Password']='b';
+$r->p['ReminderEnabled']=true; $r->p['ReminderHomeVariable']=901; $r->ApplyChanges();
+check(isset($r->v['ChargeReminder']) && isset($r->msgs[901]) && isset($r->refs[901]), 'Variable „Lade-Erinnerung“, Zu-Hause-Variable beobachtet und als Referenz eingetragen');
+$day=strtotime('2026-10-05 00:00');
+$unplugged=[109=>1,114=>0,120=>0,121=>0.0]+$base; $plugged=[109=>2]+$base;
+$r->obs=$unplugged; $r->clock=$day+20*3600+30*60; $r->Update();
+check($r->v['ChargeReminder']===false && $GLOBALS['notes']===[], '20:30 zu Hause, nicht angesteckt: noch keine Meldung');
+$r->clock=$day+21*3600+5*60; $r->Update();
+$n=$GLOBALS['notes'][0] ?? null;
+check($r->v['ChargeReminder']===true && count($GLOBALS['notes'])===1 && $n[0]===800 && $n[3]===$r->InstanceID && str_contains($n[2],'nicht an der Wallbox'),
+    '21:05: Meldung an die Kachel-Visualisierung, Tippen öffnet die Wallbox');
+check(json_decode($r->tile,true)['reminder']===true, 'Kachel zeigt „Bitte anstecken“');
+$r->clock=$day+21*3600+40*60; $r->Update();
+check(count($GLOBALS['notes'])===1, 'Pro Abend nur eine Meldung');
+$r->obs=$plugged; $r->Update();
+check($r->v['ChargeReminder']===false && json_decode($r->tile,true)['reminder']===false, 'Angesteckt: Hinweis verschwindet');
+// nächster Abend: kommt erst um 22:00 nach Hause
+$GLOBALS['ext'][901]=false; $r->obs=$unplugged; $r->clock=$day+86400+21*3600; $r->Update();
+check(count($GLOBALS['notes'])===1, 'Auto unterwegs: keine Meldung');
+$GLOBALS['ext'][901]=true; $r->clock=$day+86400+22*3600; $r->MessageSink(0,901,VM_UPDATE,[]);
+check(count($GLOBALS['notes'])===1, 'Gerade angekommen: 10 Minuten Zeit zum Anstecken');
+$r->clock=$day+86400+22*3600+11*60; $r->Update();
+check(count($GLOBALS['notes'])===2, '22:11 noch nicht angesteckt: Meldung');
+$r->clock=$day+2*86400+30*60; $r->Update();
+check(count($GLOBALS['notes'])===2, '00:30 gehört noch zum selben Abend: keine zweite Meldung');
+$r->clock=$day+2*86400+14*3600; $r->Update();
+check($r->v['ChargeReminder']===false, 'Tagsüber kein Hinweis');
+// Koordinaten statt Ja/Nein-Variable
+$r->p['ReminderSource']=1; $r->p['ReminderLatVariable']=902; $r->p['ReminderLonVariable']=903; $r->ApplyChanges();
+check(isset($r->msgs[902]) && isset($r->msgs[903]) && !isset($r->msgs[901]), 'Koordinaten werden beobachtet, alte Variable nicht mehr');
+$r->clock=$day+2*86400+21*3600+30*60; $r->a['ReminderArrived']=$r->clock-3600; $r->Update();
+check(count($GLOBALS['notes'])===3, 'Koordinaten am Ort der Location Control: Meldung');
+$GLOBALS['ext'][902]=51.99; $r->clock=$day+3*86400+21*3600+30*60; $r->Update();
+check(count($GLOBALS['notes'])===3 && $r->v['ChargeReminder']===false, 'Rund 1,1 km entfernt: nicht zu Hause, keine Meldung');
+$GLOBALS['ext'][902]=51.9805; $r->a['ReminderArrived']=$r->clock-3600; $r->Update();
+check(count($GLOBALS['notes'])===4, '55 m entfernt (Umkreis 150 m): zu Hause');
+// Akku voll
+$GLOBALS['ext'][555]=100; $r->p['EnableSoc']=true; $r->p['SocVariable']=555; $r->ApplyChanges();
+$r->clock=$day+4*86400+21*3600+30*60; $r->a['ReminderArrived']=$r->clock-3600; $r->Update();
+check(count($GLOBALS['notes'])===4 && $r->v['ChargeReminder']===false, 'Akku voll: keine Meldung');
+$GLOBALS['ext'][555]=40; $r->Update();
+check(count($GLOBALS['notes'])===5 && str_contains($GLOBALS['notes'][4][2],'Akkustand 40 %'), 'Akku 40 %: Meldung mit Akkustand');
+// Gastladung
+$r->p['VehicleMode']=1; $r->ApplyChanges();
+check(!isset($r->v['ChargeReminder']) && !isset($r->msgs[902]), 'Gastladung: keine Lade-Erinnerung');
+$r->p['VehicleMode']=0; $r->ApplyChanges();
+$fj=json_decode($r->GetConfigurationForm(),true); $find=function(array $items,string $name) use (&$find){ foreach($items as $i){ if(($i['name']??'')===$name) return $i; if(isset($i['items'])){ $x=$find($i['items'],$name); if($x) return $x; } } return null; };
+check(($find($fj['elements'],'ReminderLatVariable')['visible']??true)===true && ($find($fj['elements'],'ReminderHomeVariable')['visible']??true)===false && $find($fj['elements'],'ReminderTime')['type']==='SelectTime',
+    'Formular zeigt je nach Quelle nur die passenden Felder');
+$GLOBALS['mod']=$m;
+
 
 echo PHP_EOL . sprintf('%d Prüfungen bestanden, %d fehlgeschlagen.', $passed, $failed) . PHP_EOL;
 exit($failed > 0 ? 1 : 0);
