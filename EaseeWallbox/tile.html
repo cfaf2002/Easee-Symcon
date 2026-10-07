@@ -74,8 +74,8 @@
     .ew.charging .ew-dot { animation: pulse 1.6s ease-in-out infinite; }
     .ew-updated { margin-left: auto; font-size: 11px; color: var(--muted); }
     /* Lade-Erinnerung: Auto zu Hause, aber nicht angesteckt */
-    .ew-remind { display: none; align-items: center; gap: 6px; padding: 3px 10px 3px 8px; border-radius: 99px; white-space: nowrap;
-                 font-size: 11.5px; font-weight: 600; color: #fff; background: #e67e22; box-shadow: 0 0 0 0 rgba(230,126,34,.5);
+    .ew-remind { --remind: color-mix(in srgb, var(--warn) 55%, var(--bad)); display: none; align-items: center; gap: 6px; padding: 3px 10px 3px 8px; border-radius: 99px; white-space: nowrap;
+                 font-size: 11.5px; font-weight: 600; color: var(--on-accent); background: var(--remind); box-shadow: 0 0 0 0 color-mix(in srgb, var(--remind) 50%, transparent);
                  animation: remind 2.4s ease-out infinite; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
     .ew-remind.on { display: inline-flex; flex: none; }
     .ew-head { min-width: 0; }
@@ -84,7 +84,7 @@
     @media (max-width: 460px) { .ew.remind .ew-updated { display: none; } }
     @media (max-width: 340px) { .ew.remind .ew-status #status { display: none; } }
     .ew-remind svg { width: 13px; height: 13px; flex: none; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-    @keyframes remind { 70% { box-shadow: 0 0 0 7px rgba(230,126,34,0); } 100% { box-shadow: 0 0 0 0 rgba(230,126,34,0); } }
+    @keyframes remind { 70% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--remind) 0%, transparent); } 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--remind) 0%, transparent); } }
 
     /* ---------- Hauptbereich ---------- */
     .ew-main {
@@ -140,9 +140,9 @@
 
     /* Stromgrenze */
     .ew-stepper { margin-left: auto; display: flex; align-items: center; gap: 4px; }
-    .ew-step { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line); background: transparent;
+    .ew-step { width: 36px; height: 36px; border-radius: var(--radius-s); border: 1px solid var(--line); background: transparent;
                color: inherit; font-size: 17px; line-height: 1; cursor: pointer; }
-    .ew-step:hover:not(:disabled) { background: rgba(127,127,127,.12); }
+    .ew-step:hover:not(:disabled) { background: var(--surface-hover); }
     /* Akzentfarbe des Designs für Bedienelemente ohne Statusbedeutung */
     .ew-step:not(:disabled) { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
     body.has-bg .ew-step:not(:disabled) { color: #fff; border-color: rgba(255,255,255,.35); }
@@ -154,13 +154,14 @@
         margin-top: clamp(12px, 2.4vh, 24px);
         border: 0; border-radius: 10px; padding: clamp(11px, 1.8vh, 16px);
         font: inherit; font-weight: 600; font-size: clamp(13px, 1.9vmin, 16px); letter-spacing: .3px;
-        cursor: pointer; color: #fff; transition: filter .2s, transform .1s;
+        min-height: 36px; cursor: pointer; color: var(--on-accent); transition: filter .2s, transform .1s;
     }
     .ew-action:hover:not(:disabled) { filter: brightness(1.08); }
     .ew-action:active:not(:disabled) { transform: scale(.99); }
     .ew-action:disabled { opacity: .35; cursor: default; }
-    .ew-action.start { background: #27ae60; }
-    .ew-action.stop { background: #d35400; }
+    /* Zustandsfarben der Kachel-Grundlage: Starten grün, Pausieren orange */
+    .ew-action.start { background: var(--ok); }
+    .ew-action.stop { background: color-mix(in srgb, var(--warn) 55%, var(--bad)); }
 
 
     /* Illustration Wallbox + Fahrzeug */
@@ -565,9 +566,14 @@
         $('plus').disabled = isMax;
     }
 
+    // Knopf bis zur Antwort sperren; kommt keine (z. B. Befehl ohne sichtbare Änderung), nach 20 s wieder freigeben
+    let toggleTimer = null;
+
     function toggleCharging() {
         if (!state) return;
         $('toggle').disabled = true;
+        clearTimeout(toggleTimer);
+        toggleTimer = setTimeout(() => { if (state) $('toggle').disabled = !state.connected; }, 20000);
         requestAction('ChargingActive', !state.charging);
     }
 

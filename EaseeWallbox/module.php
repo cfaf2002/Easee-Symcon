@@ -75,6 +75,11 @@ class EaseeWallbox extends IPSModuleStrict
     // (schützt vor kurzen Aussetzern, z. B. Balancing der Fahrzeugbatterie)
     private const STOP_CONFIRM_CYCLES = 2;
 
+    // Nach abgelehnter Anmeldung erst nach 15 min, 30 min, 60 min … erneut versuchen (höchstens alle 6 h),
+    // damit falsche Zugangsdaten das Easee-Konto nicht sperren
+    private const AUTH_BACKOFF_FIRST = 900;
+    private const AUTH_BACKOFF_MAX = 21600;
+
     // =================================================================
     // Symcon-Lebenszyklus
     // =================================================================
@@ -116,6 +121,8 @@ class EaseeWallbox extends IPSModuleStrict
         $this->RegisterAttributeString('AccessToken', '');
         $this->RegisterAttributeString('RefreshToken', '');
         $this->RegisterAttributeInteger('TokenExpires', 0);
+        $this->RegisterAttributeInteger('AuthFailures', 0);
+        $this->RegisterAttributeInteger('AuthBlockedUntil', 0);
         $this->RegisterAttributeString('CredentialHash', '');
         $this->RegisterAttributeString('ActiveChargerID', '');
         $this->RegisterAttributeString('ChargerName', '');
@@ -218,7 +225,9 @@ class EaseeWallbox extends IPSModuleStrict
             return;
         }
 
-        $this->SetTimerInterval('UpdateTimer', max(1, $this->ReadPropertyInteger('UpdateInterval')) * 60 * 1000);
+        // „Übernehmen“ startet nach abgelehnter Anmeldung sofort einen neuen Versuch
+        $this->ResetAuthBackoff();
+        $this->SetTimerInterval('UpdateTimer', $this->UpdateIntervalMs());
         $this->UpdateScheduleTimer();
         $this->SetStatus(102);
 
@@ -381,6 +390,8 @@ class EaseeWallbox extends IPSModuleStrict
     /** Listet alle Charger des Kontos auf (auch als Verbindungstest). */
     public function ListChargers(): string
     {
+        // Verbindungstest von Hand: Wartezeit nach abgelehnter Anmeldung aufheben
+        $this->WriteAttributeInteger('AuthBlockedUntil', 0);
         try {
             $chargers = $this->Api('GET', '/api/chargers');
         } catch (Exception $e) {
@@ -465,12 +476,16 @@ class EaseeWallbox extends IPSModuleStrict
         $outputPhase = (int) ($v[self::OBS_OUTPUT_PHASE] ?? 0);
         $power = (float) ($v[self::OBS_TOTAL_POWER] ?? 0);
         $sessionEnergy = (float) ($v[self::OBS_SESSION_ENERGY] ?? 0);
-        $lifetimeEnergy = (float) ($v[self::OBS_LIFETIME_ENERGY] ?? 0);
+        // Fehlt der Zählerstand in der Antwort, den letzten bekannten Stand behalten:
+        // eine 0 würde die Archiv-Aggregation „Zähler“ beim nächsten Wert die ganze Lebensenergie buchen lassen
+        $lifetimeKnown = is_numeric($v[self::OBS_LIFETIME_ENERGY] ?? null) && (float) $v[self::OBS_LIFETIME_ENERGY] > 0;
+        $lifetimeEnergy = $lifetimeKnown ? (float) $v[self::OBS_LIFETIME_ENERGY] : $this->ReadAttributeFloat('LastLifetime');
         $errorCode = (int) ($v[self::OBS_ERROR_CODE] ?? 0);
         $price = (float) $this->GetValue('EnergyPrice');
         $phaseCount = self::PhaseCount($outputPhase);
 
         $vehicleConnected = in_array($opMode, [2, 3, 4, 6, 7], true);
+        $lastEstimate = (float) $this->GetValue('SessionEnergy');
 
         // Easee aktualisiert den Session-Zähler in der Cloud nur verzögert -
         // deshalb zusätzlich selbst mitrechnen und den größten Wert nehmen
@@ -500,7 +515,9 @@ class EaseeWallbox extends IPSModuleStrict
             if (!$vehicleConnected || $pending >= self::STOP_CONFIRM_CYCLES) {
                 $isCharging = false;
                 $pending = 0;
-                $this->FinishSession($sessionEnergy, $price);
+                // Beim Abstecken liefert die Cloud nur den verzögerten Session-Zähler -
+                // die eigene Schätzung bis zum letzten Abruf ist dann genauer
+                $this->FinishSession($vehicleConnected ? $sessionEnergy : max($sessionEnergy, $lastEstimate), $price);
             }
         }
 
@@ -538,9 +555,11 @@ class EaseeWallbox extends IPSModuleStrict
         $this->SetValue('CurrentL2', round((float) ($v[self::OBS_CURRENT_L2] ?? 0), 1));
         $this->SetValue('CurrentL3', round((float) ($v[self::OBS_CURRENT_L3] ?? 0), 1));
         $this->SetValue('SessionEnergy', round($sessionEnergy, 2));
-        $this->SetValue('LifetimeEnergy', round($lifetimeEnergy, 2));
         $this->SetValue('SessionCost', round($sessionEnergy * $price, 2));
-        $this->SetValue('LifetimeCost', round($lifetimeEnergy * $price, 2));
+        if ($lifetimeKnown) {
+            $this->SetValue('LifetimeEnergy', round($lifetimeEnergy, 2));
+            $this->SetValue('LifetimeCost', round($lifetimeEnergy * $price, 2));
+        }
         $this->SetValue('VehicleConnected', $vehicleConnected);
         $this->SetValue('CableLocked', self::ToBool($v[self::OBS_CABLE_LOCKED] ?? false));
         $this->SetValue('CableLockPermanent', self::ToBool($v[self::OBS_CABLE_PERMANENT] ?? false));
@@ -597,7 +616,8 @@ class EaseeWallbox extends IPSModuleStrict
     {
         $start = $this->ReadAttributeInteger('SessionStart');
         $base = $this->ReadAttributeFloat('SessionStartEnergy');
-        $energy = ($base > 0 && $sessionEnergy >= $base) ? $sessionEnergy - $base : $sessionEnergy;
+        // Nur der Anteil seit Beginn dieses Ladeabschnitts; liegt der Zähler darunter, nichts doppelt buchen
+        $energy = max(0.0, $sessionEnergy - $base);
         $cost = round($energy * $price, 2);
         $end = time();
 
@@ -661,7 +681,7 @@ class EaseeWallbox extends IPSModuleStrict
     {
         $enabled = $this->ReadPropertyBoolean('EnableSoc') && !$this->IsGuest();
         $this->MaintainVariable('SoC', 'Akkustand Fahrzeug', VARIABLETYPE_INTEGER,
-            ['PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'TEMPLATE' => VARIABLE_TEMPLATE_VALUE_PRESENTATION_BATTERY], 5, $enabled);
+            ['PRESENTATION' => VARIABLE_PRESENTATION_VALUE_PRESENTATION, 'TEMPLATE' => VARIABLE_TEMPLATE_VALUE_PRESENTATION_BATTERY], 27, $enabled);
 
         $old = $this->ReadAttributeInteger('SocWatched');
         $new = $this->SocEnabled() ? $this->ReadPropertyInteger('SocVariable') : 0;
@@ -855,6 +875,8 @@ class EaseeWallbox extends IPSModuleStrict
             $this->SendDebug('Befehl', $path . ' ' . json_encode($body), 0);
         } catch (Exception $e) {
             $this->ReportError($e);
+            // Die Kachel zeigt den Wert schon vorab an: echten Stand erneut schicken
+            $this->PushTile(false, true);
             echo 'Fehler: ' . $e->getMessage();
             return false;
         }
@@ -883,11 +905,13 @@ class EaseeWallbox extends IPSModuleStrict
         $this->SetValue('ApiOk', false);
         $this->SetValue('LastError', $message);
         $this->SetStatus($e instanceof EaseeAuthException ? 202 : 203);
-        $this->LogMessage($message, KL_ERROR);
 
-        // Nur bei neuer Fehlermeldung benachrichtigen, nicht bei jedem Abruf
-        if ($message !== $previous && $this->ReadPropertyBoolean('NotifyError')) {
-            $this->Notify('⚠️ Easee API', $message);
+        // Nur bei neuer Fehlermeldung protokollieren und benachrichtigen, nicht bei jedem Abruf
+        if ($message !== $previous) {
+            $this->LogMessage($message, KL_ERROR);
+            if ($this->ReadPropertyBoolean('NotifyError')) {
+                $this->Notify('⚠️ Easee API', $message);
+            }
         }
     }
 
@@ -905,9 +929,15 @@ class EaseeWallbox extends IPSModuleStrict
         $this->PushTile();
     }
 
+    /** Höchster Ladestrom je Phase: 11 kW = 3 × 16 A, 22 kW = 3 × 32 A, 7,4 kW = 1 × 32 A */
     private function MaxAmpere(): int
     {
-        return $this->ReadPropertyInteger('MaxPowerKW') >= 22 ? 32 : 16;
+        return $this->ReadPropertyInteger('MaxPowerKW') === 11 ? 16 : 32;
+    }
+
+    private function UpdateIntervalMs(): int
+    {
+        return max(1, $this->ReadPropertyInteger('UpdateInterval')) * 60 * 1000;
     }
 
     // =================================================================
@@ -1027,10 +1057,24 @@ class EaseeWallbox extends IPSModuleStrict
                 }
             }
 
-            return $this->RequestToken('/api/accounts/login', [
-                'userName' => $this->ReadPropertyString('Username'),
-                'password' => $this->ReadPropertyString('Password')
-            ]);
+            // Nach abgelehnter Anmeldung nicht bei jedem Abruf neu probieren (Kontosperre)
+            $blocked = $this->ReadAttributeInteger('AuthBlockedUntil');
+            if ($blocked > time()) {
+                throw new EaseeAuthException('Anmeldung bei Easee abgelehnt. Nächster Versuch um ' . date('H:i', $blocked)
+                    . ' Uhr – Benutzername/Passwort prüfen und „Übernehmen“ startet sofort einen neuen Versuch.');
+            }
+
+            try {
+                $token = $this->RequestToken('/api/accounts/login', [
+                    'userName' => $this->ReadPropertyString('Username'),
+                    'password' => $this->ReadPropertyString('Password')
+                ]);
+            } catch (EaseeAuthException $e) {
+                $this->AuthBackoff();
+                throw $e;
+            }
+            $this->ResetAuthBackoff();
+            return $token;
         } finally {
             IPS_SemaphoreLeave($lock);
         }
@@ -1058,6 +1102,32 @@ class EaseeWallbox extends IPSModuleStrict
         $this->SendDebug('Token', 'Neues Token erhalten', 0);
 
         return (string) $json['accessToken'];
+    }
+
+    /** Wartezeit nach abgelehnter Anmeldung verdoppeln: 15 min, 30 min, 60 min … höchstens 6 h. */
+    private function AuthBackoff(): void
+    {
+        $failures = $this->ReadAttributeInteger('AuthFailures') + 1;
+        $this->WriteAttributeInteger('AuthFailures', $failures);
+        $wait = (int) min(self::AUTH_BACKOFF_MAX, self::AUTH_BACKOFF_FIRST * 2 ** min(10, $failures - 1));
+        $this->WriteAttributeInteger('AuthBlockedUntil', time() + $wait);
+        if ($this->ReadPropertyBoolean('Active')) {
+            $this->SetTimerInterval('UpdateTimer', max($wait * 1000, $this->UpdateIntervalMs()));
+        }
+        $this->SendDebug('Token', sprintf('Anmeldung %d× abgelehnt - nächster Versuch in %d min', $failures, $wait / 60), 0);
+    }
+
+    /** Anmeldung wieder erlaubt: Zähler zurücksetzen und normalen Abruftakt wiederherstellen. */
+    private function ResetAuthBackoff(): void
+    {
+        if ($this->ReadAttributeInteger('AuthFailures') === 0 && $this->ReadAttributeInteger('AuthBlockedUntil') === 0) {
+            return;
+        }
+        $this->WriteAttributeInteger('AuthFailures', 0);
+        $this->WriteAttributeInteger('AuthBlockedUntil', 0);
+        if ($this->ReadPropertyBoolean('Active')) {
+            $this->SetTimerInterval('UpdateTimer', $this->UpdateIntervalMs());
+        }
     }
 
     private function ClearTokens(): void
@@ -1210,10 +1280,10 @@ class EaseeWallbox extends IPSModuleStrict
         $this->RegisterVariableFloat('CostYear', 'Kosten dieses Jahr', $eur, 20);
         $this->RegisterVariableFloat('CostCounter', 'Kosten gesamt (seit Installation)', $eur, 21);
 
-        $this->RegisterVariableBoolean('VehicleConnected', 'Fahrzeug verbunden', self::PBool('Kein Fahrzeug', 'Verbunden', 'car', 0x2ECC71), 20);
-        $this->RegisterVariableBoolean('CableLocked', 'Kabel verriegelt', self::PBool('Entriegelt', 'Verriegelt', 'lock', -1), 21);
-        $this->RegisterVariableBoolean('CableLockPermanent', 'Kabel dauerhaft verriegelt', self::PSwitch('lock'), 22);
-        $this->RegisterVariableBoolean('SmartCharging', 'Smart Charging', self::PBool('Aus', 'An', 'leaf', 0x2ECC71), 23);
+        $this->RegisterVariableBoolean('VehicleConnected', 'Fahrzeug verbunden', self::PBool('Kein Fahrzeug', 'Verbunden', 'car', 0x2ECC71), 22);
+        $this->RegisterVariableBoolean('CableLocked', 'Kabel verriegelt', self::PBool('Entriegelt', 'Verriegelt', 'lock', -1), 23);
+        $this->RegisterVariableBoolean('CableLockPermanent', 'Kabel dauerhaft verriegelt', self::PSwitch('lock'), 24);
+        $this->RegisterVariableBoolean('SmartCharging', 'Smart Charging', self::PBool('Aus', 'An', 'leaf', 0x2ECC71), 26);
 
         $this->RegisterVariableBoolean('Online', 'Online', self::PBool('Offline', 'Online', 'wifi', 0x2ECC71, 0xE74C3C), 30);
         $this->RegisterVariableInteger('WiFiRSSI', 'WLAN Signal', self::PValue(' dBm', 0, 'wifi'), 31);

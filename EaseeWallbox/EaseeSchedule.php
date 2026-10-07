@@ -41,9 +41,9 @@ trait EaseeSchedule
         $this->MaintainVariable('ScheduleEnd', 'Zeitfenster Ende', VARIABLETYPE_INTEGER, $time, 62, $keep);
         $this->MaintainVariable('ReadyBy', 'Fertig bis', VARIABLETYPE_INTEGER, $time, 63, $keep);
         $this->MaintainVariable('TargetEnergy', 'Ziel-Energie', VARIABLETYPE_FLOAT, self::PSlider(1, 100, 1, ' kWh', 0, 'battery-bolt'), 64, $keep);
-        $this->MaintainVariable('TargetSoc', 'Ziel-Akkustand', VARIABLETYPE_INTEGER, self::PSlider(10, 100, 5, ' %', 0, 'battery-full'), 64,
+        $this->MaintainVariable('TargetSoc', 'Ziel-Akkustand', VARIABLETYPE_INTEGER, self::PSlider(10, 100, 5, ' %', 0, 'battery-full'), 65,
             $keep && $this->ReadPropertyBoolean('EnableSoc') && !$this->IsGuest());
-        $this->MaintainVariable('ScheduleInfo', 'Zeitsteuerung Info', VARIABLETYPE_STRING, self::PValue('', 0, 'circle-info'), 65, $keep);
+        $this->MaintainVariable('ScheduleInfo', 'Zeitsteuerung Info', VARIABLETYPE_STRING, self::PValue('', 0, 'circle-info'), 66, $keep);
 
         if (!$keep) {
             return;

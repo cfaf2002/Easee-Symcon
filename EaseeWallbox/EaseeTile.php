@@ -27,14 +27,17 @@ trait EaseeTile
         return $html . '<script>handleMessage(' . json_encode($data, self::TILE_JSON) . ');</script>';
     }
 
-    /** @param bool $withBackground Bilder mitschicken (nur beim Laden/nach Änderung - können groß sein) */
-    private function PushTile(bool $withBackground = false): void
+    /**
+     * @param bool $withBackground Bilder mitschicken (nur beim Laden/nach Änderung - können groß sein)
+     * @param bool $force auch ohne Änderung senden (z. B. nach fehlgeschlagenem Befehl aus der Kachel)
+     */
+    private function PushTile(bool $withBackground = false, bool $force = false): void
     {
-        $json = json_encode($this->TileData($withBackground), self::TILE_JSON);
+        $json = (string) json_encode($this->TileData($withBackground), self::TILE_JSON);
 
         // Nur senden, wenn sich etwas geändert hat (spart Last bei vielen offenen Kacheln)
         $hash = md5($json);
-        if (!$withBackground && $this->GetBuffer('TileHash') === $hash) {
+        if (!$withBackground && !$force && $this->GetBuffer('TileHash') === $hash) {
             return;
         }
         $this->SetBuffer('TileHash', $hash);

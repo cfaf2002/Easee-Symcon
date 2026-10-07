@@ -2,11 +2,13 @@
 
 [![IP-Symcon ab 8.2](https://img.shields.io/badge/IP--Symcon-ab_8.2-0b6fb3.svg)](https://www.symcon.de)
 [![Optimiert für Symcon 9.0](https://img.shields.io/badge/optimiert_f%C3%BCr-Symcon_9.0-0b6fb3.svg)](https://www.symcon.de/de/service/dokumentation/installation/migrationen/v81-v90-q1-2026/)
-[![Modul-Version 1.5 (Build 11)](https://img.shields.io/badge/Modul--Version-1.5_(Build_11)-informational.svg)](library.json)
+[![Modul-Version 1.6 (Build 12)](https://img.shields.io/badge/Modul--Version-1.6_(Build_12)-informational.svg)](library.json)
 [![Tests](https://github.com/cfaf2002/Easee-Symcon/actions/workflows/tests.yml/badge.svg)](https://github.com/cfaf2002/Easee-Symcon/actions/workflows/tests.yml)
 [![PHP 8.3 und 8.5](https://img.shields.io/badge/PHP-8.3_%7C_8.5-777bb4.svg?logo=php&logoColor=white)](https://www.php.net)
 [![SDK: IPSModuleStrict](https://img.shields.io/badge/SDK-IPSModuleStrict-success.svg)](https://www.symcon.de/de/service/dokumentation/entwicklerbereich/sdk-tools/sdk-php/module/)
 [![Variablen: Darstellungen](https://img.shields.io/badge/Variablen-Darstellungen-success.svg)](https://www.symcon.de/de/service/dokumentation/entwicklerbereich/sdk-tools/sdk-php/darstellungen/)
+![Kachel: Visualisierung HTML-SDK](https://img.shields.io/badge/Kachel--Visualisierung-HTML--SDK-orange.svg)
+![Farbschema: Symcon-Design | Dunkel | Hell](https://img.shields.io/badge/Farbschema-Symcon--Design_%7C_Dunkel_%7C_Hell-blueviolet.svg)
 ![Sprache: Deutsch](https://img.shields.io/badge/Sprache-Deutsch-blueviolet.svg)
 [![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-green.svg)](LICENSE)
 ![Easee Cloud](https://img.shields.io/badge/Cloud-Easee_Observations--API-lightgrey.svg)
@@ -46,7 +48,7 @@ Autor: Armin Frohwerk · Lizenz: MIT
 
 - Status, Ladeleistung, Ladestrom, Phasen und Strom je Phase (L1–L3)
 - **Laden starten/pausieren** direkt über den Schalter „Laden“
-- **Ladestrom begrenzen** (6–16 A bzw. 6–32 A bei 22 kW)
+- **Ladestrom begrenzen** (6–16 A bei 11 kW bzw. 6–32 A bei 22 kW und 7,4 kW)
 - **Zeitsteuerung:** Laden nur im Zeitfenster oder „Fertig bis“ mit Ziel-Energie
 - **Kabel dauerhaft verriegeln** über einen Schalter
 - Session- und Gesamtenergie inkl. Kostenberechnung über einen einstellbaren Strompreis
@@ -95,7 +97,7 @@ Alle Variablen und Timer werden automatisch angelegt – ein Setup-Skript ist ni
 | Benutzername / Passwort | Zugangsdaten des Easee-Kontos |
 | Charger-ID | Leer lassen = erster Charger im Konto. Bei mehreren Wallboxen die ID eintragen (z. B. `EH123456`) |
 | Abrufintervall | Minuten zwischen zwei Abrufen (Standard 5) |
-| Maximale Ladeleistung | Für den Leistungsbalken und die Obergrenze der Stromgrenze (11 kW → 16 A, 22 kW → 32 A) |
+| Maximale Ladeleistung | Für den Leistungsbalken und die Obergrenze der Stromgrenze (11 kW → 16 A, 22 kW → 32 A, 7,4 kW einphasig → 32 A) |
 | Visualisierung für Push | Kachel-Visualisierung oder WebFront, an die Benachrichtigungen gehen |
 | Zeitsteuerung aktivieren | Legt die Variablen für die Zeitsteuerung an |
 | Sicherheitspuffer | So viel früher startet „Fertig bis“ als rechnerisch nötig (Standard 30 min) |
@@ -370,7 +372,7 @@ und „Kabel dauerhaft verriegelt“ sind jetzt direkt schaltbar, „Aktualisier
 
 ## Fehlersuche
 
-- **Status „Anmeldung fehlgeschlagen“:** Zugangsdaten in der Easee-App prüfen.
+- **Status „Anmeldung fehlgeschlagen“:** Zugangsdaten in der Easee-App prüfen. Nach einer abgelehnten Anmeldung probiert das Modul erst nach 15 Minuten erneut, danach mit jeweils doppelter Wartezeit (höchstens alle 6 Stunden), damit das Easee-Konto nicht gesperrt wird. **Übernehmen** oder **„Verbindung testen“** starten sofort einen neuen Versuch. Verbindungs- und Serverfehler zählen nicht als Anmeldefehler.
 - **Status „API-Fehler“:** Details stehen in der Variable „Letzter Fehler“.
 - Alle Anfragen und Antworten sind im **Debug-Fenster** der Instanz sichtbar (Passwort und Token werden nicht angezeigt).
   Dort protokolliert auch die Zeitsteuerung, wann und warum sie freigibt oder pausiert.
@@ -404,6 +406,7 @@ GitHub Actions (`.github/workflows/tests.yml`) prüft bei jedem Push mit PHP 8.3
 
 | Version | Build | Datum | Beschreibung |
 |---|---|---|---|
+| 1.6 | 12 | 07.10.2026 | Korrekturen: 7,4-kW-Wallbox rechnet mit 32 A statt 16 A (Stromgrenze, Regler, Kachel, „Fertig bis“); fehlt der Zählerstand in der Cloud-Antwort, bleibt der letzte Stand stehen statt 0 (keine Fehlbuchung im Archiv); beim Abstecken nach Pause/Fortsetzen wird nichts mehr doppelt in die Ladehistorie gebucht; nach abgelehnter Anmeldung Wartezeit mit steigendem Abstand (15 min bis 6 h) statt Anmeldeversuch bei jedem Abruf, Fehler nur noch einmal ins Meldungsfenster; Kachel: nach fehlgeschlagenem Befehl wird der echte Stand erneut geschickt, Laden-Knopf bleibt nicht mehr gesperrt, Bedienelemente mindestens 36 px, Knopffarben aus der Kachel-Grundlage; doppelte Variablen-Positionen behoben; Badges Kachel und Farbschema |
 | 1.5 | 11 | 06.10.2026 | Hausstil: Regel für die Modulliste (`vendor` gesetzt, höchstens ein Alias) in `STYLEGUIDE.md` und Strukturprüfung ergänzt |
 | 1.5 | 10 | 06.10.2026 | Einheitliches Design nach `STYLEGUIDE.md`: Kachel-Grundlage (Farben, Schrift, Radien, Zustandsfarben) und Einstellung „Farbschema der Kachel“ (Symcon-Design, Dunkel, Hell); Kachel-Datei heißt `tile.html`; einheitliche Badges; gemeinsamer Test-Workflow mit Struktur- und Ladetest; Zustandsfarben (Laden, Warten, Fehler …) wie in allen Modulen; Farbschema geht als Zahl an die Kachel; Systemschrift statt Poppins |
 | 1.4 | 9 | 06.10.2026 | Lade-Erinnerung am Abend: Meldung an die Visualisierung und Hinweis in der Kachel, wenn das Auto ab 21 Uhr am Ort der Location Control steht, aber nicht angesteckt ist; flache Handy-Kachel (2×1) wieder mit Ring links und Werten rechts |

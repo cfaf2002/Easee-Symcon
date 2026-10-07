@@ -24,10 +24,17 @@ class T extends EaseeWallbox
     }
 
     public array $cmds = [];
+    public int $loginCode = 200;
+    public int $loginCalls = 0;
+    public int $cmdCode = 200;
 
     protected function HttpRequest(string $method, string $url, ?array $body, ?string $token): array
     {
         if (str_contains($url, '/accounts/login')) {
+            $this->loginCalls++;
+            if ($this->loginCode !== 200) {
+                return [$this->loginCode, ''];
+            }
             return [200, json_encode(['accessToken' => 'T', 'refreshToken' => 'R', 'expiresIn' => 86400])];
         }
         if (str_ends_with($url, '/api/chargers')) {
@@ -41,7 +48,7 @@ class T extends EaseeWallbox
             return [200, json_encode(['observations' => $o])];
         }
         $this->cmds[] = preg_replace('#.*/EH1/#', '', $url) . ' ' . json_encode($body);
-        return [200, ''];
+        return [$this->cmdCode, ''];
     }
 
     public function last(): string
@@ -249,6 +256,50 @@ check(abs($e->v['SessionEnergy']-2.2)<0.02, 'Cloud-Wert höher -> Cloud-Wert: '.
 $e->obs=[109=>1,114=>0,120=>0,121=>0.0]+$b; $e->Update(); $e->Update();
 $e->obs=[109=>2,114=>0,120=>0,121=>0.0,124=>13301.5]+$b; $e->Update();
 check($e->v['SessionEnergy']==0.0, 'Nach Ab- und Einstecken wieder bei 0');
+$GLOBALS['mod']=$m;
+
+echo "Korrekturen 1.6\n";
+$k=new T(); $GLOBALS['mod']=$k; $k->Create(); $k->p['Username']='a'; $k->p['Password']='b'; $k->p['MaxPowerKW']=7; $k->ApplyChanges();
+check($k->call('MaxAmpere')===32 && $k->pres['ChargeLimit']['MAX']==32, '7,4 kW (einphasig): Stromgrenze bis 32 A');
+$k->p['MaxPowerKW']=11; check($k->call('MaxAmpere')===16, '11 kW: Stromgrenze bis 16 A');
+$k->p['MaxPowerKW']=22; check($k->call('MaxAmpere')===32, '22 kW: Stromgrenze bis 32 A');
+$k->p['MaxPowerKW']=11;
+// Zählerstand fehlt in der Antwort
+$kb=[109=>2,114=>0,110=>30,120=>0,121=>0.0,124=>5000.0,48=>16,47=>16,250=>true,119=>0];
+$k->obs=$kb; $k->Update(); $k->obs=[124=>5010.0]+$kb; $k->Update();
+$m0=$k->v['EnergyMonth'];
+$k->obs=$kb; unset($k->obs[124]); $k->Update();
+check($k->v['LifetimeEnergy']==5010.0, 'Fehlender Zählerstand: letzter Stand bleibt stehen (nicht 0)');
+$k->obs=[124=>5012.0]+$kb; $k->Update();
+check(abs($k->v['EnergyMonth']-$m0-2.0)<0.01, 'Danach wird nur der echte Zuwachs (2 kWh) gebucht');
+// Pause, Fortsetzen, Abstecken mit verzögertem Cloud-Zähler
+$k->WriteAttributeString('History','[]');
+$k->obs=[109=>3,114=>16,121=>5.2,124=>5012.0]+$kb; $k->Update();
+$k->obs=[109=>2,114=>0,121=>5.2,124=>5017.2]+$kb; $k->Update(); $k->Update();
+$k->obs=[109=>3,114=>16,121=>5.2,124=>5017.2]+$kb; $k->Update();
+$k->obs=[109=>3,114=>16,121=>5.2,124=>5020.0]+$kb; $k->Update();
+$k->obs=[109=>1,114=>0,121=>5.0,124=>5020.0]+$kb; $k->Update();
+$h=json_decode($k->GetHistory(),true);
+check(count($h)===2 && abs($h[0]['energy']-5.2)<0.01 && abs($h[1]['energy']-2.8)<0.01, 'Abstecken nach Pause: zweiter Abschnitt 2,8 kWh, nichts doppelt gebucht ('.implode(' / ', array_column($h,'energy')).')');
+// Kachel bekommt nach fehlgeschlagenem Befehl den echten Stand
+$k->cmdCode=500; $k->pushes=[]; ob_start(); $ok=$k->SetChargeLimit(10); ob_end_clean();
+check($ok===false && count($k->pushes)>=1 && json_decode((string) end($k->pushes),true)['limit']===16, 'Fehlgeschlagener Befehl: Kachel bekommt die echte Stromgrenze erneut');
+$k->cmdCode=200;
+check($k->status===203 && $k->a['AccessToken']==='T', 'Serverfehler: kein Anmeldefehler, Token bleibt erhalten');
+// Falsches Passwort: Wartezeit statt Anmeldung bei jedem Abruf
+$GLOBALS['log']=[];
+$k->WriteAttributeString('AccessToken',''); $k->WriteAttributeString('RefreshToken',''); $k->loginCode=401; $k->loginCalls=0;
+$k->Update();
+check($k->status===202 && $k->a['AuthFailures']===1 && $k->timers['UpdateTimer']===900000, 'Abgelehnte Anmeldung: Status 202, nächster Abruf erst in 15 min');
+$k->Update(); $k->Update(); $k->RequestAction('QuickRefresh', true);
+check($k->loginCalls===1, 'Während der Wartezeit keine weiteren Anmeldeversuche');
+check(count($GLOBALS['log'])<=2, 'Fehler nicht bei jedem Abruf im Meldungsfenster ('.count($GLOBALS['log']).'×)');
+$k->a['AuthBlockedUntil']=time()-1; $k->Update();
+check($k->loginCalls===2 && $k->a['AuthFailures']===2 && $k->timers['UpdateTimer']===1800000, 'Zweiter Fehlversuch: Wartezeit verdoppelt (30 min)');
+$k->loginCode=200; $k->ApplyChanges();
+check($k->a['AuthFailures']===0 && $k->timers['UpdateTimer']===300000, '„Übernehmen“ hebt die Wartezeit auf');
+$k->Update();
+check($k->status===102 && $k->loginCalls===3, 'Mit richtigen Zugangsdaten wieder angemeldet');
 $GLOBALS['mod']=$m;
 
 echo "Lade-Erinnerung am Abend\n";
